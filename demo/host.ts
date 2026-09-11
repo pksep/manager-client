@@ -1,12 +1,16 @@
 import { mount } from '../src/embed'
 import './host.css'
 
+const useManagerService =
+  new URLSearchParams(location.search).get('service') === 'manager'
+
 document.querySelector('#demo')!.innerHTML = `
   <main class="demo-panel">
     <details>
       <summary>Тестирование виджета</summary>
       <div class="demo-controls">
-        <p>Кнопка чата — справа внизу. Сообщения остаются в локальном демо.</p>
+        <p>${useManagerService ? 'Сообщения поступают в локальный СЭП Чат.' : 'Кнопка чата — справа внизу. Сообщения остаются в локальном демо.'}</p>
+        <div ${useManagerService ? 'hidden' : ''}>
         <label><input id="available" type="checkbox" checked> Сервис доступен</label>
         <label><input id="online" type="checkbox" checked> Рабочее время</label>
         <label><input id="social" type="checkbox" checked> Ссылка ВКонтакте</label>
@@ -14,6 +18,7 @@ document.querySelector('#demo')!.innerHTML = `
         <button id="read-messages" type="button">Отметить сообщения прочитанными</button>
         <button id="fail-next" type="button">Ошибка следующей отправки</button>
         <span id="control-status" role="status"></span>
+        </div>
       </div>
     </details>
   </main>`
@@ -47,7 +52,9 @@ document.querySelector('#read-messages')!.addEventListener('click', () => {
 })
 const widget = mount({
   siteId: 'amotiv-demo',
-  serviceUrl: 'http://127.0.0.1:4311',
+  serviceUrl: useManagerService
+    ? 'http://127.0.0.1:4314'
+    : 'http://127.0.0.1:4311',
   widgetUrl: new URL('/widget.html', location.href).href,
 })
 window.addEventListener('pagehide', (event) => {
