@@ -1,7 +1,7 @@
 # manager: контракт виджета 0.1
 
-11.09.2026. Реализован в клиенте и `demo/server.ts`. Это контракт для этапа 2;
-демосервер не является реализацией manager-server. Общие типы:
+Обновлён 15.09.2026. Реализован в клиенте, `manager-server` и `demo/server.ts`;
+демосервер предназначен для проверки интерфейса. Общие типы:
 [`src/protocol.ts`](../src/protocol.ts).
 
 ## Подключение
@@ -33,16 +33,26 @@ CSS сайта не проникает внутрь. Нажатия за пре�
 `Authorization: Bearer ...`; cookies не используются. Токен и черновик
 живут в памяти страницы, не записываются в localStorage.
 
+Отдельный подписанный `visitorToken` хранится в localStorage только для общего
+лимита браузера. Он не заменяет гостевой токен и не открывает историю.
+
 | Метод и маршрут | Вход | Результат |
 | --- | --- | --- |
-| POST `/session` | `{siteId, source?}` | `{token, config, serverTime, inquiryId, messages}` |
+| POST `/session` | `{siteId, source, visitorToken?}` | `{token, visitorToken?, config, serverTime, inquiryId, messages}` |
 | WebSocket `/events` | Первое сообщение `{type:'authenticate', token}` | `ready` с текущим снимком переписки |
 | POST `/inquiries` | `SendRequest`, включая contacts | `{inquiryId, message}` |
 | POST `/inquiries/:id/messages` | `SendRequest` текущего обращения | `{inquiryId, message}` |
-| POST `/attachments` | FormData: `file`, `operationId` | `{id, name, size, mime}` |
+| POST `/attachments` | FormData: `file`, `operationId`; заголовок `X-Operation-Id` с тем же значением | `{id, name, size, mime}` |
 | GET `/attachments/:id` | Гостевой токен | Байты доступного этому гостю файла |
 
 `SendRequest`: `{operationId, html, attachmentIds, contacts?}`.
+
+Сервер может вернуть `403 {code:'captcha_required', siteKey, challenge}`. Виджет
+получает токен Яндекс SmartCaptcha и один раз повторяет ту же операцию с
+`X-Captcha-Token` и `X-Captcha-Challenge`, сохраняя тело и operationId. Ключи
+сервера не передаются. Отмена/ошибка проверки оставляет форму для повтора.
+Ответ 429 содержит `Retry-After`; ошибка проверки файла — 422, недоступность
+антивируса — 503. CORS разрешает перечисленные заголовки и показывает Retry-After.
 `contacts`: `{name, phone, email}`. Идентификаторы сообщений, обращения,
 операций и вложений являются непрозрачными строками.
 

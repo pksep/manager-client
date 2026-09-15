@@ -2,6 +2,7 @@
 import type { ServerWebSocket } from 'bun'
 import {
   contactsValid,
+  publicUrl,
   type WidgetConfig,
   type Message,
   type Attachment,
@@ -15,9 +16,15 @@ const config: WidgetConfig = {
     'Мне нужна помощь',
     'Вы можете мне помочь?',
   ],
-  socialLinks: [
-    { label: 'Написать ВКонтакте', url: 'https://vk.com/', icon: 'vk' },
-  ],
+  socialLinks: process.env.VK_BUSINESS_URL
+    ? [
+        {
+          label: 'Написать ВКонтакте',
+          url: publicUrl(process.env.VK_BUSINESS_URL),
+          icon: 'vk',
+        },
+      ]
+    : [],
   schedule: {
     timezone: 'Europe/Moscow',
     start: '08:00',
@@ -91,7 +98,8 @@ const server = Bun.serve<SocketData>({
     const headers = {
       'Access-Control-Allow-Origin': origin || allowed[0],
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+      'Access-Control-Allow-Headers':
+        'Authorization,Content-Type,X-Operation-Id,X-Captcha-Token,X-Captcha-Challenge',
       'Cache-Control': 'no-store',
       Vary: 'Origin',
     }
@@ -121,6 +129,16 @@ const server = Bun.serve<SocketData>({
         if (typeof body.available === 'boolean') available = body.available
         if (typeof body.online === 'boolean') online = body.online
         if (typeof body.social === 'boolean') social = body.social
+        if (typeof body.vkBusinessUrl === 'string')
+          config.socialLinks = body.vkBusinessUrl
+            ? [
+                {
+                  label: 'Написать ВКонтакте',
+                  url: publicUrl(body.vkBusinessUrl),
+                  icon: 'vk',
+                },
+              ]
+            : []
         if (typeof body.autoReply === 'boolean') autoReply = body.autoReply
         if (typeof body.failNext === 'boolean') failNext = body.failNext
         if (typeof body.loseAck === 'boolean') loseAck = body.loseAck

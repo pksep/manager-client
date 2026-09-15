@@ -49,6 +49,7 @@ export interface Message {
 }
 export interface Session {
   token: string
+  visitorToken?: string
   config: WidgetConfig
   serverTime: string
   inquiryId: string | null

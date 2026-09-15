@@ -31,7 +31,10 @@ async function contacts(page: Page) {
     .fill('ivan@example.com')
 }
 test.beforeEach(async ({ request }) => {
-  await control(request, { reset: true })
+  await control(request, {
+    reset: true,
+    vkBusinessUrl: 'https://vk.com/test-company',
+  })
 })
 
 test('геометрия, приветствия и контакты до первой доставки', async ({
@@ -286,7 +289,7 @@ test('меню использует заданные социальные ссы
   await frame(page).getByRole('button', { name: 'Открыть чат' }).hover()
   await expect(
     frame(page).getByRole('link', { name: 'Написать ВКонтакте' }),
-  ).toHaveAttribute('href', 'https://vk.com/')
+  ).toHaveAttribute('href', 'https://vk.com/test-company')
   await expect(
     frame(page).getByRole('button', { name: 'Отправить сообщение' }),
   ).toBeVisible()

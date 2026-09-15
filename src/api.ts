@@ -8,6 +8,7 @@ import {
   type SendResult,
   type Attachment,
 } from './protocol'
+import { solveCaptcha } from './smart-captcha'
 
 export class ServiceError extends Error {
   constructor(
@@ -22,14 +23,24 @@ export class WidgetApi {
   token = ''
   readonly base: string
   private requests = new Set<AbortController>()
+  private visitorToken = ''
   constructor(readonly options: EmbedOptions) {
     this.base = publicUrl(options.serviceUrl).replace(/\/$/, '')
+    try {
+      this.visitorToken =
+        localStorage.getItem(
+          `manager-visitor:${this.base}:${options.siteId}`,
+        ) || ''
+    } catch {
+      /* Ограничения браузера не мешают открыть чат. */
+    }
   }
 
   async request<T>(
     path: string,
     init: RequestInit = {},
     timeout = 8000,
+    allowCaptcha = true,
   ): Promise<T> {
     const controller = new AbortController()
     this.requests.add(controller)
@@ -45,6 +56,40 @@ export class WidgetApi {
         cache: 'no-store',
       })
       if (!response.ok) {
+        const result: unknown = await response.json().catch(() => null)
+        if (
+          allowCaptcha &&
+          response.status === 403 &&
+          result &&
+          typeof result === 'object' &&
+          'code' in result &&
+          result.code === 'captcha_required' &&
+          'siteKey' in result &&
+          typeof result.siteKey === 'string' &&
+          result.siteKey.length <= 300 &&
+          'challenge' in result &&
+          typeof result.challenge === 'string'
+        ) {
+          clearTimeout(timer)
+          let token: string
+          try {
+            token = await solveCaptcha(result.siteKey, controller.signal)
+          } catch (error) {
+            throw new ServiceError(
+              error instanceof Error
+                ? error.message
+                : 'Не удалось пройти проверку',
+            )
+          }
+          headers.set('X-Captcha-Token', token)
+          headers.set('X-Captcha-Challenge', result.challenge)
+          return await this.request<T>(
+            path,
+            { ...init, headers },
+            timeout,
+            false,
+          )
+        }
         throw new ServiceError(
           response.status >= 500
             ? 'Сервис временно недоступен'
@@ -52,7 +97,11 @@ export class WidgetApi {
               ? 'Файл превышает допустимый размер'
               : response.status === 429
                 ? 'Слишком много запросов. Попробуйте чуть позже.'
-                : 'Не удалось выполнить запрос. Проверьте данные и повторите.',
+                : response.status === 422
+                  ? 'Файл не прошёл проверку. Проверьте формат и содержимое.'
+                  : response.status === 403
+                    ? 'Проверка не завершена. Повторите отправку.'
+                    : 'Не удалось выполнить запрос. Проверьте данные и повторите.',
           response.status >= 500 || response.status === 401,
         )
       }
@@ -75,6 +124,7 @@ export class WidgetApi {
         body: JSON.stringify({
           siteId: this.options.siteId,
           source: this.options.source,
+          ...(this.visitorToken ? { visitorToken: this.visitorToken } : {}),
         }),
       },
       5000,
@@ -92,6 +142,20 @@ export class WidgetApi {
       .map(parseMessage)
       .filter((m) => m.inquiryId === session.inquiryId)
     this.token = session.token
+    if (
+      typeof session.visitorToken === 'string' &&
+      session.visitorToken.length <= 110
+    ) {
+      this.visitorToken = session.visitorToken
+      try {
+        localStorage.setItem(
+          `manager-visitor:${this.base}:${this.options.siteId}`,
+          this.visitorToken,
+        )
+      } catch {
+        /* История по этому ключу не хранится. */
+      }
+    }
     return session
   }
 
@@ -124,7 +188,7 @@ export class WidgetApi {
     body.set('operationId', operationId)
     const result = await this.request<Attachment>(
       '/attachments',
-      { method: 'POST', body },
+      { method: 'POST', body, headers: { 'X-Operation-Id': operationId } },
       60000,
     )
     if (typeof result.id !== 'string')
