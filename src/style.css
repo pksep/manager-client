@@ -1,0 +1,616 @@
+:root {
+  font-family: 'Inter Variable', Inter, Arial, sans-serif;
+  color: var(--text-primary);
+  font-synthesis: none;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+button,
+a,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  color: inherit;
+}
+button:disabled {
+  cursor: default;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--action-primary-active-bg);
+  outline-offset: 2px;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+button svg,
+a svg {
+  flex-shrink: 0;
+}
+.manager-widget {
+  --chat-window-radius: 20px;
+  width: 100%;
+  height: 100%;
+}
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-main);
+  border-radius: var(--chat-window-radius);
+}
+.chat-window--collapsed {
+  position: absolute;
+  width: 418px;
+  height: 640px;
+  visibility: hidden;
+  pointer-events: none;
+}
+.chat-header {
+  height: 76px;
+  min-height: 76px;
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-overlay);
+  border-bottom: 0.5px solid var(--border-table);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.chat-header.dragging {
+  cursor: grabbing;
+}
+.chat-header:focus-visible {
+  outline: 2px solid var(--action-primary-active-bg);
+  outline-offset: -3px;
+}
+.company-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+.company-avatar .avatar-yui-kit {
+  --size-avatar: 20px;
+  --online-indicator-size: 7px;
+  background: var(--table-surface-card-blue) !important;
+}
+.company-info {
+  flex: 1;
+  min-width: 0;
+}
+.company-info h1 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 19px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.operator-status {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 15px;
+  color: var(--action-primary-bg);
+  margin-top: 3px;
+}
+.operator-status.offline {
+  color: var(--text-disabled);
+}
+.close-chat {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+.close-chat:hover {
+  background: var(--action-secondary-bg);
+}
+.widget-scroll {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  --scroll-wrapper-vertical-gap: 0px;
+  --scroll-wrapper-horizontal-gap: 0px;
+}
+.widget-scroll .scroll-wrapper__slot {
+  border: 0;
+  border-radius: 0;
+  overscroll-behavior: contain;
+}
+.widget-scroll .scroll-wrapper__track_vertical {
+  position: absolute;
+  right: 3px;
+  top: 0;
+  bottom: 0;
+}
+/* Short conversations sit at the bottom; long conversations remain scrollable. */
+.transcript-content {
+  min-height: 100%;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.transcript-content > :first-child {
+  margin-top: auto;
+}
+.welcome-messages {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.welcome-messages .welcome-message.button-yui-kit {
+  max-width: 100%;
+  padding: 11.5px 13px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 17px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface-overlay);
+}
+.composer {
+  flex: 0 0 120px;
+  height: 120px;
+  position: relative;
+  border-radius: var(--chat-window-radius);
+}
+.composer.busy {
+  opacity: 0.6;
+}
+/* Local geometry for the shared desktop editor inside a narrow iframe. */
+.composer .editor-component {
+  border-radius: inherit !important;
+  height: 120px !important;
+  min-height: 120px !important;
+  max-height: 120px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+}
+.composer .editor-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 !important;
+  width: 100% !important;
+  scrollbar-width: none;
+}
+.composer .editor-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.composer .tiptap {
+  padding: 26px 15px 8px !important;
+  min-height: 65px !important;
+  font-size: 16px !important;
+  line-height: 19px !important;
+  overflow-wrap: anywhere;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.composer .toolbar {
+  display: flex !important;
+  flex-shrink: 0;
+  gap: 8px;
+  margin: 0 15px 15px !important;
+  height: 30px !important;
+  position: static !important;
+  width: calc(100% - 30px) !important;
+}
+.composer .mobile-item,
+.composer .right-buttons {
+  display: none !important;
+}
+.composer .toolbar .toolbar-button {
+  display: flex !important;
+  width: 32px !important;
+}
+.composer .toolbar .right {
+  margin-left: auto;
+}
+.composer .toolbar .right:disabled svg {
+  color: var(--text-disabled);
+}
+.composer .toolbar button.right:disabled {
+  background: var(--action-disabled-bg) !important;
+}
+.composer .editor-component-slot {
+  display: none;
+}
+.composer .attach-modal {
+  max-height: 100%;
+}
+.composer:has(.attach-files-modal),
+.composer:has(.attachment-modal) {
+  z-index: 3;
+}
+.contact-step {
+  padding: 48.5px 25px;
+}
+.contact-step h2 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.contact-description {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19px;
+  color: var(--text-secondary);
+  margin-top: 15px;
+}
+.contact-fields {
+  display: grid;
+  gap: 15px;
+  margin-top: 35px;
+}
+.contact-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.contact-field label {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 19px;
+}
+.contact-field .input-yui-kit {
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+}
+.contact-field .input-yui-kit::before,
+.contact-field .input-yui-kit .input-yui-kit__input {
+  border-radius: inherit;
+}
+.contact-field .input-yui-kit .input-yui-kit__input {
+  width: 100%;
+}
+.contact-step .contact-submit-hint {
+  display: block;
+  width: 100%;
+  margin-top: 35px;
+}
+.contact-step .contact-submit {
+  margin-top: 0;
+  width: 100%;
+  height: 50px;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 18px;
+}
+.contact-submit:disabled {
+  pointer-events: none;
+}
+.contact-submit-hint:focus-visible {
+  outline: 2px solid var(--action-primary-active-bg);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.error-message {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--status-errorDark);
+  margin-top: 12px;
+}
+.composer-error {
+  padding: 6px 16px;
+  margin: 0;
+  background: var(--surface-overlay);
+}
+.composer-error button {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  font-size: 12px;
+}
+.message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 0 6px 0 4px;
+}
+.message-row.outgoing {
+  justify-content: flex-end;
+}
+.message-avatar.avatar-yui-kit {
+  --size-avatar: 17.5px;
+  flex-shrink: 0;
+}
+.message-row .chat-message-surface {
+  position: relative;
+  max-width: calc(100% - 43px);
+  width: fit-content;
+  min-width: 0;
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 20px;
+  gap: 4px;
+}
+.message-row.outgoing .chat-message-surface {
+  max-width: 100%;
+}
+.message-row .chat-message-surface::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -6px;
+  width: 16px;
+  height: 16px;
+  background: var(--surface-overlay);
+  clip-path: path('M 16 0 L 16 16 L 0 16 Q 7 14 7 6 Z');
+}
+.message-row.outgoing .chat-message-surface::before {
+  left: auto;
+  right: -6px;
+  transform: scaleX(-1);
+  background: var(--surface-brand);
+}
+.message-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.message-author {
+  font-size: 14px;
+  line-height: 17px;
+  color: var(--text-brand);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.operator-badge {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 17px;
+  padding: 0 5px;
+  border-radius: 10px;
+  color: var(--text-link);
+  background: var(--table-surface-card-blue);
+}
+.message-content {
+  display: block;
+  min-width: 0;
+  line-height: 20px;
+}
+.message-content::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+.message-html {
+  display: inline;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message-html > :last-child {
+  display: inline;
+}
+.message-html p {
+  margin: 0;
+}
+.message-html p + p {
+  margin-top: 5px;
+}
+.message-html ul,
+.message-html ol {
+  padding-left: 20px;
+}
+.message-time {
+  float: right;
+  clear: right;
+  margin-left: 8px;
+  max-width: 100%;
+}
+.message-time--bottom {
+  justify-self: end;
+}
+.contact-summary .chat-message-surface {
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.contact-notice {
+  align-self: center;
+  max-width: 100%;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--text-white);
+  background: var(--text-secondary);
+}
+.message-file {
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 0;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+.message-file > div {
+  min-width: 0;
+}
+.message-file svg {
+  flex-shrink: 0;
+}
+.message-content__file__name {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  line-height: 18px;
+}
+.message-content__file__size {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.launcher-area {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 60px;
+  height: 60px;
+}
+.launcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--action-primary-bg);
+  color: var(--text-white);
+  padding: 0;
+  transition: background 0.15s;
+}
+.launcher:hover {
+  background: var(--action-primary-active-bg);
+}
+.launcher:disabled {
+  background: var(--surface-disabled);
+}
+.launcher-popover .popover-yui-kit__wrapper {
+  padding: 0 !important;
+  background: none !important;
+  width: 60px;
+  height: 60px;
+}
+.launcher-popover .popover-yui-kit__content {
+  position: fixed !important;
+  top: auto !important;
+  left: auto !important;
+  right: 0 !important;
+  bottom: 72px !important;
+  transform: none !important;
+  width: 280px !important;
+  max-width: 100vw !important;
+  padding: 8px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  background: var(--surface-overlay) !important;
+  box-shadow: none !important;
+}
+.contact-menu {
+  display: grid;
+  gap: 0;
+}
+.contact-menu button,
+.contact-menu a {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-decoration: none;
+  text-align: left;
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-overlay);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.contact-menu button:hover,
+.contact-menu a:hover {
+  background: var(--action-secondary-hover-bg);
+}
+.contact-menu button svg {
+  color: var(--action-primary-bg);
+}
+.mode-menu .launcher-area::before {
+  content: '';
+  position: absolute;
+  bottom: 60px;
+  right: 0;
+  width: 60px;
+  height: 12px;
+  background: transparent;
+}
+.launcher:focus-visible {
+  outline-offset: -4px;
+  outline-color: var(--text-white);
+}
+@media (max-width: 350px) {
+  .chat-header {
+    gap: 8px;
+  }
+  .operator-status {
+    font-size: 11px;
+  }
+  .contact-step {
+    padding: 28px 20px;
+  }
+  .contact-fields {
+    margin-top: 24px;
+  }
+  .contact-description {
+    font-size: 14px;
+    line-height: 21px;
+  }
+  .contact-step .contact-submit-hint {
+    margin-top: 25px;
+  }
+  .transcript-content {
+    padding: 15px 12px;
+  }
+  .message-heading {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
