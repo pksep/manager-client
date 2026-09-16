@@ -16,7 +16,7 @@
     "format": "prettier --write src demo tests *.ts *.json *.html"
   },
   "dependencies": {
-    "@pksep/yui": "0.1.318",
+    "@pksep/yui": "0.1.320",
     "dompurify": "3.4.14",
     "vue": "3.5.39"
   },
