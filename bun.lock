@@ -5,7 +5,7 @@
     "": {
       "name": "@pksep/manager-client",
       "dependencies": {
-        "@pksep/yui": "0.1.318",
+        "@pksep/yui": "0.1.320",
         "dompurify": "3.4.14",
         "vue": "3.5.39",
       },
@@ -146,7 +146,7 @@
 
     "@pksep/col-cal": ["@pksep/col-cal@1.0.4", "", { "dependencies": { "@awesome.me/webawesome": "^3.0.0-beta.3", "date-fns": "^4.1.0", "lit": "^3.3.0" } }, "sha512-5EXweA5JmJzjb6dkRzB9E/tNkCA3dtTs2YbKLKgsCp2//rqOgI55b99XSPJT9qGF3rqdIPPsYpk09gocAuF/7A=="],
 
-    "@pksep/yui": ["@pksep/yui@0.1.318", "", { "dependencies": { "@floating-ui/vue": "^1.1.11", "@fontsource-variable/inter": "^5.2.8", "@fontsource/source-sans-pro": "^5.2.5", "@panzoom/panzoom": "^4.6.2", "@pksep/col-cal": "^1.0.4", "@tiptap/core": "^3.27.3", "@tiptap/extension-image": "^3.27.3", "@tiptap/extension-link": "^3.27.3", "@tiptap/extension-placeholder": "^3.27.3", "@tiptap/extension-text-style": "3.27.3", "@tiptap/pm": "^3.27.3", "@tiptap/starter-kit": "^3.27.3", "@tiptap/vue-3": "^3.27.3", "@vueuse/components": "^11.3.0", "@vueuse/core": "^11.3.0", "pdfjs-dist": "^5.7.284", "print-js": "^1.6.0", "vue": "^3.5.39", "vue3-emoji-picker": "^1.1.8", "vue3-perfect-scrollbar": "^2.0.0" } }, "sha512-FQYyNubXOa6I7Y4WVBLtcK/tvEUvPGeIN3YnmdtcJyjRHAlraMxSovVT/QzgbhhHFj6vjQNHwTb5q9DsIE6CVg=="],
+    "@pksep/yui": ["@pksep/yui@0.1.320", "", { "dependencies": { "@floating-ui/vue": "^1.1.11", "@fontsource-variable/inter": "^5.2.8", "@fontsource/source-sans-pro": "^5.2.5", "@panzoom/panzoom": "^4.6.2", "@pksep/col-cal": "^1.0.4", "@tiptap/core": "^3.27.3", "@tiptap/extension-image": "^3.27.3", "@tiptap/extension-link": "^3.27.3", "@tiptap/extension-placeholder": "^3.27.3", "@tiptap/extension-text-style": "3.27.3", "@tiptap/pm": "^3.27.3", "@tiptap/starter-kit": "^3.27.3", "@tiptap/vue-3": "^3.27.3", "@vueuse/components": "^11.3.0", "@vueuse/core": "^11.3.0", "pdfjs-dist": "^5.7.284", "print-js": "^1.6.0", "vue": "^3.5.39", "vue3-emoji-picker": "^1.1.8", "vue3-perfect-scrollbar": "^2.0.0" } }, "sha512-k/5QDUkKGRaTrkkQJLooOd97O5HS10AYF2rZSEn5t7lTy9y7x3Uyd5xZlQxzr3dbts5eRY1Ki8Pv8sqcy17orA=="],
 
     "@playwright/test": ["@playwright/test@1.56.1", "", { "dependencies": { "playwright": "1.56.1" }, "bin": { "playwright": "cli.js" } }, "sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg=="],
 
