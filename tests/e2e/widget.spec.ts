@@ -742,7 +742,7 @@ test('новая загрузка не раскрывает историю, HTML
   ).toBeVisible()
   await control(request, {
     reply:
-      '<img src=x onerror="window.__unsafe=1"><strong>Безопасный ответ</strong><script>window.__unsafe=2</script>',
+      '<img src=x onerror="window.__unsafe=1"><strong>Безопасный ответ</strong> <a href="https://example.com/help">Инструкция</a> <a href="javascript:window.__unsafe=3">Опасная ссылка</a><script>window.__unsafe=2</script>',
   })
   await expect(
     frame(page).getByText('Безопасный ответ', { exact: true }),
@@ -750,6 +750,16 @@ test('новая загрузка не раскрывает историю, HTML
   await expect(
     frame(page).locator('.message-html img, .message-html script'),
   ).toHaveCount(0)
+  const safeLink = frame(page).getByRole('link', { name: 'Инструкция' })
+  await expect(safeLink).toHaveAttribute('href', 'https://example.com/help')
+  await expect(safeLink).toHaveAttribute('target', '_blank')
+  await expect(safeLink).toHaveAttribute('rel', 'noopener noreferrer')
+  await expect(safeLink).toHaveCSS('color', 'rgb(64, 123, 255)')
+  await expect(safeLink).toHaveCSS('text-decoration-line', 'underline')
+  await expect(
+    frame(page).locator('.message-html').filter({ hasText: 'Безопасный ответ' }),
+  ).toContainText('Опасная ссылка')
+  await expect(frame(page).locator('.message-html a')).toHaveCount(1)
   await page.reload()
   await open(page)
   await expect(frame(page).locator('.welcome-message')).toHaveCount(3)

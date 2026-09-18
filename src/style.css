@@ -436,6 +436,19 @@ a svg {
 .message-html p + p {
   margin-top: 5px;
 }
+.message-html a,
+.message-html a:visited {
+  color: var(--text-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.message-html a:hover,
+.message-html a:active {
+  color: var(--action-primary-active-bg);
+}
 .message-html ul,
 .message-html ol {
   padding-left: 20px;

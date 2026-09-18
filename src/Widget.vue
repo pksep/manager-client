@@ -104,8 +104,13 @@ const icon = {
   telegram: IconNameEnum.socialTelegram,
   chat: IconNameEnum.chat,
 }
-const safeHtml = (html: string) =>
-  DOMPurify.sanitize(html, {
+
+function unwrapUnsafeLink(link: HTMLAnchorElement): void {
+  link.replaceWith(...Array.from(link.childNodes))
+}
+
+function safeHtml(html: string): string {
+  const sanitized = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
       'p',
       'br',
@@ -120,9 +125,40 @@ const safeHtml = (html: string) =>
       'li',
       'blockquote',
       'code',
+      'a',
     ],
-    ALLOWED_ATTR: [],
+    ALLOWED_ATTR: ['href'],
   })
+
+  const template = document.createElement('template')
+  template.innerHTML = sanitized
+  template.content.querySelectorAll('a').forEach((link): void => {
+    const href = link.getAttribute('href')
+
+    if (!href) {
+      unwrapUnsafeLink(link)
+      return
+    }
+
+    try {
+      const url = new URL(href)
+
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        unwrapUnsafeLink(link)
+        return
+      }
+
+      link.href = url.href
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+    } catch {
+      unwrapUnsafeLink(link)
+    }
+  })
+
+  return template.innerHTML
+}
+
 const time = (value: string) =>
   new Intl.DateTimeFormat('ru', {
     hour: '2-digit',
