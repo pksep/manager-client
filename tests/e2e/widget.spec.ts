@@ -317,6 +317,22 @@ test('меню использует заданные социальные ссы
   ).toHaveCount(0)
 })
 
+test('закрытие не раскрывает popover и плавно сменяет окно кнопкой', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await open(page)
+  const f = frame(page)
+  const chat = f.locator('.chat-window')
+
+  await f.getByRole('button', { name: 'Закрыть чат' }).click()
+  await expect(chat).toHaveClass(/chat-window--closing/)
+  await expect(f.locator('.contact-menu')).toHaveCount(0)
+  await page.waitForTimeout(250)
+  await expect(f.getByRole('button', { name: 'Открыть чат' })).toBeVisible()
+  await expect(f.locator('.contact-menu')).toHaveCount(0)
+})
+
 test('вне рабочего времени обращение доступно', async ({ page, request }) => {
   await control(request, { online: false })
   await page.goto('/')
@@ -567,10 +583,10 @@ test('эмодзи выбирается стандартным редактор�
   await expect(frame(page).locator('.composer .tiptap')).toContainText('😀')
   await frame(page).locator('.composer .tiptap').press('Escape')
   // Escape collapses the panel after the editor closes its popup.
-  if (
-    await frame(page).getByRole('button', { name: 'Открыть чат' }).isVisible()
-  )
-    await open(page)
+  await expect(
+    frame(page).getByRole('button', { name: 'Открыть чат' }),
+  ).toBeVisible()
+  await open(page)
   await frame(page).locator('.composer .toolbar .right').click()
   await contacts(page)
   await frame(page)
@@ -757,7 +773,9 @@ test('новая загрузка не раскрывает историю, HTML
   await expect(safeLink).toHaveCSS('color', 'rgb(64, 123, 255)')
   await expect(safeLink).toHaveCSS('text-decoration-line', 'underline')
   await expect(
-    frame(page).locator('.message-html').filter({ hasText: 'Безопасный ответ' }),
+    frame(page)
+      .locator('.message-html')
+      .filter({ hasText: 'Безопасный ответ' }),
   ).toContainText('Опасная ссылка')
   await expect(frame(page).locator('.message-html a')).toHaveCount(1)
   await page.reload()

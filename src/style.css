@@ -56,6 +56,18 @@ a svg {
   overflow: hidden;
   background: var(--surface-main);
   border-radius: var(--chat-window-radius);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: right bottom;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chat-window--opening,
+.chat-window--closing {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  pointer-events: none;
 }
 .chat-window--collapsed {
   position: absolute;
@@ -511,6 +523,7 @@ a svg {
   bottom: 0;
   width: 60px;
   height: 60px;
+  animation: launcher-show 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .launcher {
   display: flex;
@@ -591,6 +604,24 @@ a svg {
 .launcher:focus-visible {
   outline-offset: -4px;
   outline-color: var(--text-white);
+}
+@keyframes launcher-show {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-window {
+    transition: none;
+  }
+  .launcher-area {
+    animation: none;
+  }
 }
 @media (max-width: 350px) {
   .chat-header {

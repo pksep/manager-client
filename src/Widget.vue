@@ -72,7 +72,16 @@ const panelDrag = usePanelDrag(
 const emojiPreloaded = ref(false)
 let warmup: number | undefined
 let warmupUsesIdle = false
-function cancelWarmup() {
+const panelTransition = ref<'idle' | 'opening' | 'closing'>('idle')
+let openingFrame: number | undefined
+let closingTimer: number | undefined
+let ignoreNextLauncherFocus = false
+
+function transitionDuration(): number {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180
+}
+
+function cancelWarmup(): void {
   if (warmup === undefined) return
   if (warmupUsesIdle) window.cancelIdleCallback(warmup)
   else window.clearTimeout(warmup)
@@ -95,6 +104,8 @@ watch([available, editor], async () => {
 onBeforeUnmount(() => {
   cancelWarmup()
   clearTimeout(leaveTimer)
+  if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
+  if (closingTimer !== undefined) window.clearTimeout(closingTimer)
 })
 const menuHeight = computed(
   () => 96 + (1 + (config.value?.socialLinks.length || 0)) * 44,
@@ -195,25 +206,62 @@ const size = (bytes: number) =>
       ? `${(bytes / 1024).toFixed(1)} КБ`
       : `${(bytes / 1024 / 1024).toFixed(1)} МБ`
 let leaveTimer: ReturnType<typeof setTimeout> | undefined
-function showMenu() {
+function showMenu(): void {
   clearTimeout(leaveTimer)
   menu.value = true
 }
-function leaveMenu() {
+function showMenuFromFocus(): void {
+  if (ignoreNextLauncherFocus) {
+    ignoreNextLauncherFocus = false
+    return
+  }
+
+  showMenu()
+}
+function leaveMenu(): void {
   leaveTimer = setTimeout(() => {
     menu.value = false
   }, 180)
 }
-function showChat() {
+async function showChat(): Promise<void> {
+  if (open.value) return
+
   clearTimeout(leaveTimer)
   menu.value = false
+  panelTransition.value = 'opening'
   open.value = true
+
+  await nextTick()
+  openingFrame = requestAnimationFrame(() => {
+    openingFrame = requestAnimationFrame(() => {
+      openingFrame = undefined
+      if (open.value && panelTransition.value === 'opening')
+        panelTransition.value = 'idle'
+    })
+  })
 }
-async function closeChat() {
+async function closeChat(): Promise<void> {
+  if (!open.value || panelTransition.value === 'closing') return
+
+  if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
+  openingFrame = undefined
+  panelTransition.value = 'closing'
+  await new Promise<void>((resolve) => {
+    closingTimer = window.setTimeout(() => {
+      closingTimer = undefined
+      resolve()
+    }, transitionDuration())
+  })
+
   open.value = false
   menu.value = false
+  panelTransition.value = 'idle'
+  ignoreNextLauncherFocus = true
   await nextTick()
   launcher.value?.focus({ preventScroll: true })
+  requestAnimationFrame(() => {
+    ignoreNextLauncherFocus = false
+  })
 }
 function keyboard(event: KeyboardEvent) {
   if (event.key === 'Escape') {
@@ -252,7 +300,11 @@ watch([() => messages.value.length, step, open], async () => {
   >
     <section
       class="chat-window"
-      :class="{ 'chat-window--collapsed': !open }"
+      :class="{
+        'chat-window--collapsed': !open,
+        'chat-window--opening': panelTransition === 'opening',
+        'chat-window--closing': panelTransition === 'closing',
+      }"
       :inert="!open || undefined"
       :aria-hidden="!open"
       role="dialog"
@@ -557,7 +609,7 @@ watch([() => messages.value.length, step, open], async () => {
             aria-label="Открыть чат"
             :aria-expanded="menu"
             @click.stop="showChat"
-            @focus="showMenu"
+            @focus="showMenuFromFocus"
           >
             <Icon :name="IconNameEnum.chat" :width="24" :height="24" />
           </button>
