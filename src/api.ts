@@ -26,6 +26,7 @@ export class WidgetApi {
   private visitorToken = ''
   constructor(readonly options: EmbedOptions) {
     this.base = publicUrl(options.serviceUrl).replace(/\/$/, '')
+    this.token = options.supportSessionToken || ''
     try {
       this.visitorToken =
         localStorage.getItem(

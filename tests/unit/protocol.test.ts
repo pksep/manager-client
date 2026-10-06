@@ -5,7 +5,41 @@ import {
   operatorOnline,
   parseMessage,
   publicUrl,
+  parseSupportDraft,
 } from '../../src/protocol'
+
+describe('Восстановление черновика поддержки', () => {
+  const draft = {
+    draft: '<p>Вопрос</p>',
+    files: [new File(['log'], 'press.txt', { type: 'text/plain' })],
+    operationId: '0adfb3ba-3b8a-4b34-8d02-fae7c1e40f8b',
+    operationHtml: '<p>Вопрос</p>',
+    uploaded: [
+      { id: 'file-1', name: 'press.txt', mime: 'text/plain', size: 3 },
+    ],
+  }
+
+  test('сохраняет файл и идентификатор незавершённой отправки', (): void => {
+    expect(parseSupportDraft(draft)).toEqual(draft)
+    expect(parseSupportDraft(undefined)).toBeUndefined()
+  })
+
+  test('не принимает поддельные файлы, неверный идентификатор или лишние загрузки', (): void => {
+    expect(
+      parseSupportDraft({ ...draft, files: [{ name: 'fake', size: 3 }] }),
+    ).toBeUndefined()
+    expect(
+      parseSupportDraft({ ...draft, operationId: '-'.repeat(36) }),
+    ).toBeUndefined()
+    expect(parseSupportDraft({ ...draft, files: [] })).toBeUndefined()
+    expect(
+      parseSupportDraft({
+        ...draft,
+        uploaded: [{ ...draft.uploaded[0], size: -1 }],
+      }),
+    ).toBeUndefined()
+  })
+})
 
 describe('Правила контактов', () => {
   const valid = {
