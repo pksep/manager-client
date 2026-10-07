@@ -810,6 +810,7 @@ test('посторонний postMessage не может показать скр
 
 test('сенсорный экран 320 px: открытие и отправка доступны касанием', async ({
   browser,
+  baseURL,
 }) => {
   const context = await browser.newContext({
     viewport: { width: 320, height: 740 },
@@ -817,7 +818,7 @@ test('сенсорный экран 320 px: открытие и отправка
     hasTouch: true,
   })
   const page = await context.newPage()
-  await page.goto('http://127.0.0.1:4310')
+  await page.goto(baseURL!)
   await frame(page).getByRole('button', { name: 'Открыть чат' }).tap()
   await frame(page).locator('.composer .tiptap').fill('Нужна консультация')
   await frame(page).locator('.composer .toolbar .right').tap()

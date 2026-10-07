@@ -1,17 +1,62 @@
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  type Ref,
+  type ComputedRef,
+} from 'vue'
 import { WidgetApi, ServiceError } from './api'
 import {
   contactErrors,
   operatorOnline,
   parseMessage,
+  parseSupportDraft,
   type EmbedOptions,
   type WidgetConfig,
   type Message,
   type Contacts,
   type Attachment,
+  type SupportDraft,
 } from './protocol'
 
-export function useWidget(options: EmbedOptions) {
+interface MessageDraft {
+  content?: string
+  files?: FileList
+  mediaFiles?: FileList
+}
+
+interface WidgetState {
+  available: Ref<boolean>
+  open: Ref<boolean>
+  menu: Ref<boolean>
+  config: Ref<WidgetConfig | undefined>
+  inquiryId: Ref<string | null>
+  messages: Ref<Message[]>
+  step: Ref<'conversation' | 'contacts'>
+  contacts: Contacts
+  draft: Ref<string>
+  files: Ref<File[]>
+  error: Ref<string>
+  sending: Ref<boolean>
+  uploadedCount: Ref<number>
+  online: ComputedRef<boolean>
+  canSubmit: ComputedRef<boolean>
+  submitDisabledReason: ComputedRef<string>
+  prepare(payload: MessageDraft): void
+  send(): Promise<void>
+  download(file: Attachment): Promise<void>
+}
+
+export function useWidget(
+  options: EmbedOptions,
+  onDraft?: (draft: SupportDraft) => void,
+): WidgetState {
+  const saved = options.supportSessionToken
+    ? parseSupportDraft(options.supportDraft)
+    : undefined
   const api = new WidgetApi(options)
   const available = ref(false),
     open = ref(false),
@@ -21,15 +66,15 @@ export function useWidget(options: EmbedOptions) {
   const messages = ref<Message[]>([]),
     step = ref<'conversation' | 'contacts'>('conversation')
   const contacts = reactive<Contacts>({ name: '', phone: '', email: '' })
-  const draft = ref(''),
-    files = ref<File[]>([]),
+  const draft = ref(saved?.draft || ''),
+    files = ref<File[]>(saved?.files || []),
     error = ref(''),
     sending = ref(false),
     uploadedCount = ref(0)
   const serverNow = ref(new Date())
-  let operationId = '',
-    operationHtml = '',
-    uploaded: Attachment[] = []
+  let operationId = saved?.operationId || '',
+    operationHtml = saved?.operationHtml || '',
+    uploaded: Attachment[] = saved?.uploaded || []
   let pendingAcknowledgement: Message | undefined
   let socket: WebSocket | undefined,
     retry: ReturnType<typeof setTimeout> | undefined
@@ -57,7 +102,21 @@ export function useWidget(options: EmbedOptions) {
     serverNow.value = new Date(Date.now() + serverOffset)
   }, 15000)
 
-  function add(message: Message) {
+  function saveDraft(): void {
+    if (!options.supportSessionToken) return
+
+    onDraft?.({
+      draft: draft.value,
+      files: [...files.value],
+      operationId,
+      operationHtml,
+      uploaded: uploaded.map((file) => ({ ...file })),
+    })
+  }
+
+  watch([draft, files], saveDraft)
+
+  function add(message: Message): void {
     if (message.inquiryId !== inquiryId.value) {
       // A read update can arrive before the first HTTP acknowledgement.
       if (
@@ -88,7 +147,7 @@ export function useWidget(options: EmbedOptions) {
     )
   }
 
-  function disconnect() {
+  function disconnect(): void {
     available.value = false
     open.value = false
     menu.value = false
@@ -113,7 +172,7 @@ export function useWidget(options: EmbedOptions) {
       )
   }
 
-  async function connect() {
+  async function connect(): Promise<void> {
     if (disposed || connecting || available.value) return
     connecting = true
     const current = ++generation
@@ -167,6 +226,7 @@ export function useWidget(options: EmbedOptions) {
             clearTimeout(retry)
             retry = undefined
             available.value = true
+            if (options.supportSessionToken) open.value = true
             connecting = false
             attempts = 0
             schedulePing()
@@ -191,7 +251,7 @@ export function useWidget(options: EmbedOptions) {
     }
   }
 
-  function schedulePing() {
+  function schedulePing(): void {
     clearTimeout(heartbeat)
     heartbeat = setTimeout(() => {
       if (socket?.readyState !== WebSocket.OPEN) return disconnect()
@@ -200,7 +260,7 @@ export function useWidget(options: EmbedOptions) {
     }, 10000)
   }
 
-  function clearSentDraft() {
+  function clearSentDraft(): void {
     pendingAcknowledgement = undefined
     draft.value = ''
     files.value = []
@@ -210,13 +270,10 @@ export function useWidget(options: EmbedOptions) {
     error.value = ''
     uploadedCount.value = 0
     step.value = 'conversation'
+    saveDraft()
   }
 
-  function prepare(payload: {
-    content?: string
-    files?: FileList
-    mediaFiles?: FileList
-  }) {
+  function prepare(payload: MessageDraft): void {
     if (sending.value || !config.value || !available.value) return
     const selected = [
       ...Array.from(payload.files || []),
@@ -251,7 +308,7 @@ export function useWidget(options: EmbedOptions) {
     else void send()
   }
 
-  async function send() {
+  async function send(): Promise<void> {
     if (
       sending.value ||
       !available.value ||
@@ -263,12 +320,14 @@ export function useWidget(options: EmbedOptions) {
     sending.value = true
     error.value = ''
     const currentOperation = operationId
+    saveDraft()
     try {
       for (let i = uploaded.length; i < files.value.length; i++) {
         uploaded.push(
           await api.upload(files.value[i], `${currentOperation}:${i}`),
         )
         uploadedCount.value = uploaded.length
+        saveDraft()
       }
       const result = await api.send(inquiryId.value, {
         operationId: currentOperation,
@@ -296,10 +355,11 @@ export function useWidget(options: EmbedOptions) {
       if (cause instanceof ServiceError && cause.unavailable) disconnect()
     } finally {
       sending.value = false
+      saveDraft()
     }
   }
 
-  async function download(file: Attachment) {
+  async function download(file: Attachment): Promise<void> {
     try {
       const blob = await api.download(file.id)
       if (disposed) return
@@ -314,7 +374,7 @@ export function useWidget(options: EmbedOptions) {
     }
   }
 
-  function wake() {
+  function wake(): void {
     if (document.visibilityState === 'visible') {
       disconnect()
       clearTimeout(retry)
@@ -329,6 +389,7 @@ export function useWidget(options: EmbedOptions) {
     document.addEventListener('visibilitychange', wake)
   })
   onBeforeUnmount(() => {
+    saveDraft()
     disposed = true
     clearInterval(clock)
     clearTimeout(retry)

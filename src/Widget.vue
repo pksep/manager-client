@@ -20,15 +20,25 @@ import {
   ScrollWrapper,
 } from '@pksep/yui'
 import companyMark from './assets/company-mark.svg'
-import { type EmbedOptions, type FrameMode, type PanelMove } from './protocol'
+import {
+  type EmbedOptions,
+  type FrameMode,
+  type PanelMove,
+  type SupportDraft,
+} from './protocol'
 import { useWidget } from './useWidget'
 import { usePanelDrag } from './usePanelDrag'
 import { vCompactMessage } from './compactMessage'
 
-const props = defineProps<{ options: EmbedOptions }>()
+const props = withDefaults(
+  defineProps<{ options: EmbedOptions; embedded?: boolean }>(),
+  { embedded: false },
+)
 const emit = defineEmits<{
   frameState: [state: { mode: FrameMode; menuHeight: number }]
   panelMove: [event: PanelMove]
+  close: []
+  draftChange: [draft: SupportDraft]
 }>()
 const {
   available,
@@ -50,7 +60,7 @@ const {
   prepare,
   send,
   download,
-} = useWidget(props.options)
+} = useWidget(props.options, (draft): void => emit('draftChange', draft))
 const editor = ref<InstanceType<typeof ContentEditor> | null>(null)
 const submitHintFocused = ref(false)
 const transcript = ref<InstanceType<typeof ScrollWrapper>>(),
@@ -66,7 +76,7 @@ const mode = computed<FrameMode>(() =>
         : 'launcher',
 )
 const panelDrag = usePanelDrag(
-  computed(() => open.value && available.value),
+  computed(() => !props.embedded && open.value && available.value),
   (event) => emit('panelMove', event),
 )
 const emojiPreloaded = ref(false)
@@ -263,10 +273,11 @@ async function closeChat(): Promise<void> {
     ignoreNextLauncherFocus = false
   })
 }
-function keyboard(event: KeyboardEvent) {
+function keyboard(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
-    void closeChat()
+    if (props.embedded) emit('close')
+    else void closeChat()
   }
 }
 watch(
@@ -295,7 +306,7 @@ watch([() => messages.value.length, step, open], async () => {
     v-if="config"
     v-show="available"
     class="manager-widget"
-    :class="`mode-${mode}`"
+    :class="[`mode-${mode}`, { 'manager-widget--embedded': embedded }]"
     @keydown="keyboard"
   >
     <section
@@ -311,6 +322,7 @@ watch([() => messages.value.length, step, open], async () => {
       aria-label="Чат с компанией"
     >
       <header
+        v-if="!embedded"
         class="chat-header"
         :class="{ dragging: panelDrag.dragging.value }"
         tabindex="0"
@@ -553,7 +565,7 @@ watch([() => messages.value.length, step, open], async () => {
                     </div>
                   </ChatMessageSurface>
                 </div>
-                <p class="contact-notice">
+                <p v-if="!embedded" class="contact-notice">
                   Контакты переданы оператору вместе с сообщением
                 </p>
               </template>
@@ -590,7 +602,7 @@ watch([() => messages.value.length, step, open], async () => {
     </section>
 
     <div
-      v-if="!open"
+      v-if="!embedded && !open"
       class="launcher-area"
       @mouseenter="showMenu"
       @mouseleave="leaveMenu"

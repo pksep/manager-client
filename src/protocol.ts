@@ -3,7 +3,54 @@ export interface EmbedOptions {
   serviceUrl: string
   widgetUrl: string
   offset?: number
+  supportSessionToken?: string
+  supportDraft?: SupportDraft
   source?: { pageUrl: string; title: string; referrerOrigin: string }
+}
+
+/** Состояние неотправленной операции сохраняется только в открытом приложении. */
+export interface SupportDraft {
+  draft: string
+  files: File[]
+  operationId: string
+  operationHtml: string
+  uploaded: Attachment[]
+}
+
+export function parseSupportDraft(input: unknown): SupportDraft | undefined {
+  if (!input || typeof input !== 'object') return
+
+  const value = input as Partial<SupportDraft>
+
+  if (
+    typeof value.draft !== 'string' ||
+    value.draft.length > 200000 ||
+    typeof value.operationHtml !== 'string' ||
+    value.operationHtml.length > 200000 ||
+    typeof value.operationId !== 'string' ||
+    !/^(|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.test(
+      value.operationId,
+    ) ||
+    !Array.isArray(value.files) ||
+    value.files.length > 20 ||
+    value.files.some(
+      (file) => !(file instanceof File) || file.size > 100 * 1024 * 1024,
+    ) ||
+    !Array.isArray(value.uploaded) ||
+    value.uploaded.length > value.files.length ||
+    value.uploaded.some(
+      (file) =>
+        !file ||
+        typeof file.id !== 'string' ||
+        typeof file.name !== 'string' ||
+        typeof file.mime !== 'string' ||
+        !Number.isSafeInteger(file.size) ||
+        file.size < 0,
+    )
+  )
+    return
+
+  return value as SupportDraft
 }
 
 export type FrameMode = 'hidden' | 'launcher' | 'menu' | 'panel'
