@@ -50,4 +50,13 @@ const updateState = (state: { mode: FrameMode; menuHeight: number }): void => {
 .support-widget :deep(.chat-window) {
   border-radius: 0;
 }
+
+.support-widget :deep(.composer) {
+  border-radius: 0;
+}
+
+.support-widget :deep(.composer .editor-component) {
+  border: 0;
+  box-shadow: none;
+}
 </style>
