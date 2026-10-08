@@ -7,6 +7,7 @@ import {
   type Message,
   type Attachment,
   type SendRequest,
+  type OperatorTyping,
 } from '../src/protocol'
 
 const config: WidgetConfig = {
@@ -41,6 +42,8 @@ type Guest = {
   files: Map<string, { file: File; attachment: Attachment }>
   uploads: Map<string, Attachment>
   operations: Map<string, Message>
+  clockOffset: number
+  typing?: OperatorTyping
 }
 type SocketData = { token?: string }
 let available = true,
@@ -49,10 +52,37 @@ let available = true,
   autoReply = true,
   failNext = false,
   loseAck = false
+let sessionRequests = 0,
+  eventConnections = 0
 const sessions = new Map<string, Guest>(),
   sockets = new Set<ServerWebSocket<SocketData>>()
 const now = () =>
   online ? '2026-09-10T07:00:00.000Z' : '2026-09-10T18:00:00.000Z'
+
+function operatorTyping(
+  guest: Guest,
+  active: boolean,
+  overrides: object = {},
+): void {
+  if (!active) {
+    guest.typing = undefined
+    return
+  }
+  if (!guest.inquiryId) return
+
+  const time = Date.now() + guest.clockOffset
+  guest.typing ||= {
+    id: crypto.randomUUID(),
+    inquiryId: guest.inquiryId,
+    startedAt: new Date(time).toISOString(),
+    expiresAt: new Date(time + 8000).toISOString(),
+  }
+  guest.typing.expiresAt = new Date(time + 8000).toISOString()
+
+  for (const ws of sockets)
+    if (ws.data.token === guest.token)
+      ws.send(JSON.stringify({ type: 'typing', ...guest.typing, ...overrides }))
+}
 function broadcast(guest: Guest, message: Message) {
   for (const ws of sockets)
     if (ws.data.token === guest.token)
@@ -125,6 +155,8 @@ const server = Bun.serve<SocketData>({
           autoReply = true
           failNext = false
           loseAck = false
+          sessionRequests = 0
+          eventConnections = 0
         }
         if (typeof body.available === 'boolean') available = body.available
         if (typeof body.online === 'boolean') online = body.online
@@ -144,6 +176,23 @@ const server = Bun.serve<SocketData>({
         if (typeof body.loseAck === 'boolean') loseAck = body.loseAck
         if (typeof body.reply === 'string')
           for (const guest of sessions.values()) managerReply(guest, body.reply)
+        if (typeof body.typing === 'boolean')
+          for (const guest of sessions.values())
+            operatorTyping(
+              guest,
+              body.typing,
+              typeof body.typingOverride === 'object' && body.typingOverride
+                ? body.typingOverride
+                : {},
+            )
+        if (body.repeatReply)
+          for (const guest of sessions.values()) {
+            const message = guest.messages
+              .slice()
+              .reverse()
+              .find((message) => message.direction === 'incoming')
+            if (message) broadcast(guest, message)
+          }
         if (body.readMessages)
           for (const guest of sessions.values()) markRead(guest)
         if (body.sendFile)
@@ -162,7 +211,13 @@ const server = Bun.serve<SocketData>({
             guest.files.set(attachment.id, { file, attachment })
             managerReply(guest, 'Прикрепляю файл к ответу.', [attachment])
           }
-        if (!body.reply && !body.sendFile && !body.readMessages)
+        if (
+          !body.reply &&
+          !body.sendFile &&
+          !body.readMessages &&
+          !body.repeatReply &&
+          typeof body.typing !== 'boolean'
+        )
           for (const ws of sockets) ws.close()
       }
       return json({
@@ -170,6 +225,8 @@ const server = Bun.serve<SocketData>({
         online,
         social,
         sessions: sessions.size,
+        sessionRequests,
+        eventConnections,
         messages: [...sessions.values()].reduce(
           (n, s) =>
             n + s.messages.filter((m) => m.direction === 'outgoing').length,
@@ -186,6 +243,7 @@ const server = Bun.serve<SocketData>({
       (req.headers.get('authorization') || '').replace(/^Bearer /, ''),
     )
     if (url.pathname === '/v1/widget/session' && req.method === 'POST') {
+      sessionRequests++
       const body = (await req.json()) as { siteId: string }
       if (body.siteId !== 'amotiv-demo') return json({}, 404)
       if (!guest) {
@@ -196,9 +254,11 @@ const server = Bun.serve<SocketData>({
           files: new Map(),
           uploads: new Map(),
           operations: new Map(),
+          clockOffset: 0,
         }
         sessions.set(guest.token, guest)
       }
+      guest.clockOffset = Date.parse(now()) - Date.now()
       return json({
         token: guest.token,
         config: { ...config, socialLinks: social ? config.socialLinks : [] },
@@ -293,6 +353,7 @@ const server = Bun.serve<SocketData>({
   },
   websocket: {
     open(ws) {
+      eventConnections++
       sockets.add(ws)
       setTimeout(() => {
         if (!ws.data.token) ws.close()

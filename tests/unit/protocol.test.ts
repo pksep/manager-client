@@ -4,9 +4,37 @@ import {
   contactErrors,
   operatorOnline,
   parseMessage,
+  parseOperatorTyping,
   publicUrl,
   parseSupportDraft,
 } from '../../src/protocol'
+
+describe('Сигнал набора оператором', () => {
+  const signal = {
+    id: '0adfb3ba-3b8a-4b34-8d02-fae7c1e40f8b',
+    inquiryId: '0adfb3ba-3b8a-4b34-8d02-fae7c1e40f8c',
+    startedAt: '2026-10-08T10:00:00.000Z',
+    expiresAt: '2026-10-08T10:00:08.000Z',
+  }
+
+  test('принимает начало набора без внутренних данных оператора', (): void => {
+    expect(parseOperatorTyping({ ...signal, userId: 'private' })).toEqual(
+      signal,
+    )
+  })
+
+  test('не принимает повреждённый адресат и время', (): void => {
+    for (const change of [
+      { id: 'invalid' },
+      { inquiryId: 'invalid' },
+      { startedAt: 'invalid' },
+      { expiresAt: signal.startedAt },
+    ])
+      expect(() => parseOperatorTyping({ ...signal, ...change })).toThrow()
+
+    expect(() => parseOperatorTyping(null)).toThrow()
+  })
+})
 
 describe('Восстановление черновика поддержки', () => {
   const draft = {

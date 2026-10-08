@@ -1,7 +1,12 @@
 import { publicUrl, type EmbedOptions, type FrameMode } from './protocol'
+import { NotificationSound } from './notification-sound'
+
+interface WidgetHandle {
+  destroy(): void
+}
 
 /** One isolated instance per call. Destroy removes the frame and all listeners. */
-export function mount(options: EmbedOptions) {
+export function mount(options: EmbedOptions): WidgetHandle {
   options = {
     ...options,
     source: {
@@ -35,12 +40,16 @@ export function mount(options: EmbedOptions) {
   let mode: FrameMode = 'hidden'
   let menuHeight = 160
   let alive = true
+  const sound = new NotificationSound()
+  const unlockSound = (event: Event): void => {
+    if (event.isTrusted) sound.unlock()
+  }
   let panelPosition: { left: number; top: number } | undefined
   let dragOrigin:
     | { x: number; y: number; left: number; top: number }
     | undefined
   const offset = Math.max(8, Math.min(80, options.offset ?? 24))
-  function layout() {
+  function layout(): void {
     const availableWidth = Math.max(1, window.innerWidth - offset * 2)
     const availableHeight = Math.max(1, window.innerHeight - offset * 2)
     const width = Math.min(
@@ -82,7 +91,7 @@ export function mount(options: EmbedOptions) {
     }))
       frame.style.setProperty(key, value, 'important')
   }
-  function receive(event: MessageEvent) {
+  function receive(event: MessageEvent): void {
     if (
       !alive ||
       event.source !== frame.contentWindow ||
@@ -90,6 +99,15 @@ export function mount(options: EmbedOptions) {
       event.data?.instance !== instance
     )
       return
+    if (event.data.type === 'sep-manager:interaction') sound.unlock()
+    if (
+      event.data.type === 'sep-manager:notification' &&
+      typeof event.data.messageId === 'string' &&
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        event.data.messageId,
+      )
+    )
+      sound.notify(event.data.messageId)
     if (event.data.type === 'sep-manager:ready') {
       frame.contentWindow?.postMessage(
         { type: 'sep-manager:init', instance, options },
@@ -130,6 +148,8 @@ export function mount(options: EmbedOptions) {
   }
   window.addEventListener('message', receive)
   window.addEventListener('resize', layout)
+  window.addEventListener('pointerdown', unlockSound, true)
+  window.addEventListener('keydown', unlockSound, true)
   let loaded = false
   frame.addEventListener('load', () => {
     if (loaded) {
@@ -141,10 +161,13 @@ export function mount(options: EmbedOptions) {
   frame.src = widgetUrl.href
   document.body.append(frame)
   return {
-    destroy() {
+    destroy(): void {
       alive = false
       window.removeEventListener('message', receive)
       window.removeEventListener('resize', layout)
+      window.removeEventListener('pointerdown', unlockSound, true)
+      window.removeEventListener('keydown', unlockSound, true)
+      sound.destroy()
       frame.remove()
     },
   }

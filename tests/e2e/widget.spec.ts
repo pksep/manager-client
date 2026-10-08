@@ -222,7 +222,6 @@ test('текст и контакты компактны, имеют время �
   await control(request, { available: false })
   await expect(page.locator('iframe[data-sep-manager]')).toBeHidden()
   await control(request, { available: true })
-  await open(page)
   await expect(
     rows.getByRole('img', { name: 'Прочитано', exact: true }),
   ).toHaveCount(2)
@@ -272,10 +271,7 @@ test('при недоступности нет даже кнопки; восст
   await control(request, { available: false })
   await expect(page.locator('iframe[data-sep-manager]')).toBeHidden()
   await control(request, { available: true })
-  await expect(
-    frame(page).getByRole('button', { name: 'Открыть чат' }),
-  ).toBeVisible()
-  await open(page)
+  await expect(frame(page).getByRole('dialog')).toBeVisible()
   await expect(frame(page).locator('.composer .tiptap')).toHaveText(
     'Сохранённый черновик',
   )
@@ -349,18 +345,13 @@ test('потерянное подтверждение не создаёт дуб
   await firstMessage(page)
   await contacts(page)
   await control(request, { loseAck: true })
-  // Demo controls reconnect the socket, so wait for readiness and reopen.
-  await expect(
-    frame(page).getByRole('button', { name: 'Открыть чат' }),
-  ).toBeVisible()
-  await open(page)
+  // После восстановления открытая форма остаётся открытой.
+  await expect(page.locator('iframe[data-sep-manager]')).toBeHidden()
+  await expect(frame(page).getByRole('dialog')).toBeVisible()
   await frame(page)
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
     .click()
-  await expect(
-    frame(page).getByRole('button', { name: 'Открыть чат' }),
-  ).toBeVisible()
-  await open(page)
+  await expect(frame(page).getByRole('dialog')).toBeVisible()
   await expect(
     frame(page).getByText('Подберите оборудование', { exact: true }),
   ).toBeVisible()
@@ -467,7 +458,7 @@ test('файл без предпросмотра сохраняется до к�
   await control(request, { available: false })
   await expect(page.locator('iframe[data-sep-manager]')).toBeHidden()
   await control(request, { available: true })
-  await frame(page).getByRole('button', { name: 'Открыть чат' }).click()
+  await expect(frame(page).getByRole('dialog')).toBeVisible()
   await expect(frame(page).locator('.attach-modal-container')).toHaveCount(0)
   await expect(frame(page).getByText('Как с вами связаться?')).toBeVisible()
   await contacts(page)

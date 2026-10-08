@@ -55,6 +55,20 @@ if (
           parentOrigin,
         )
       },
+      onInteraction: (): void => {
+        if (!supportMode)
+          parent.postMessage(
+            { type: 'sep-manager:interaction', instance },
+            parentOrigin,
+          )
+      },
+      onNotification: (messageId: string): void => {
+        if (!supportMode)
+          parent.postMessage(
+            { type: 'sep-manager:notification', instance, messageId },
+            parentOrigin,
+          )
+      },
       onClose: (): void => {
         parent.postMessage(
           { type: 'sep-manager:close', instance },
