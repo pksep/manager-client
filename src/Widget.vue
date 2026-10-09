@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import {
   Avatar,
@@ -39,11 +39,14 @@ const emit = defineEmits<{
   panelMove: [event: PanelMove]
   close: []
   draftChange: [draft: SupportDraft]
+  interaction: []
+  notification: [messageId: string]
 }>()
 const {
   available,
   open,
   menu,
+  operatorActivity,
   config,
   inquiryId,
   messages,
@@ -60,7 +63,22 @@ const {
   prepare,
   send,
   download,
-} = useWidget(props.options, (draft): void => emit('draftChange', draft))
+} = useWidget(
+  props.options,
+  (draft): void => emit('draftChange', draft),
+  (messageId): void => {
+    if (!props.embedded) emit('notification', messageId)
+  },
+)
+
+function interaction(event: Event): void {
+  if (event.isTrusted && !props.embedded) emit('interaction')
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', interaction, true)
+  window.addEventListener('keydown', interaction, true)
+})
 const editor = ref<InstanceType<typeof ContentEditor> | null>(null)
 const submitHintFocused = ref(false)
 const transcript = ref<InstanceType<typeof ScrollWrapper>>(),
@@ -86,6 +104,8 @@ const panelTransition = ref<'idle' | 'opening' | 'closing'>('idle')
 let openingFrame: number | undefined
 let closingTimer: number | undefined
 let ignoreNextLauncherFocus = false
+let focusOnOpen = true
+let panelAction = 0
 
 function transitionDuration(): number {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180
@@ -112,6 +132,8 @@ watch([available, editor], async () => {
     : window.setTimeout(preload, 100)
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', interaction, true)
+  window.removeEventListener('keydown', interaction, true)
   cancelWarmup()
   clearTimeout(leaveTimer)
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
@@ -234,8 +256,15 @@ function leaveMenu(): void {
   }, 180)
 }
 async function showChat(): Promise<void> {
-  if (open.value) return
+  await revealChat(true)
+}
 
+async function revealChat(focus: boolean): Promise<void> {
+  if (open.value && panelTransition.value !== 'closing') return
+
+  panelAction++
+  focusOnOpen = focus
+  if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   clearTimeout(leaveTimer)
   menu.value = false
   panelTransition.value = 'opening'
@@ -253,15 +282,19 @@ async function showChat(): Promise<void> {
 async function closeChat(): Promise<void> {
   if (!open.value || panelTransition.value === 'closing') return
 
+  const action = ++panelAction
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   openingFrame = undefined
   panelTransition.value = 'closing'
   await new Promise<void>((resolve) => {
-    closingTimer = window.setTimeout(() => {
-      closingTimer = undefined
+    const timer = window.setTimeout(() => {
+      if (closingTimer === timer) closingTimer = undefined
       resolve()
     }, transitionDuration())
+    closingTimer = timer
   })
+
+  if (action !== panelAction) return
 
   open.value = false
   menu.value = false
@@ -286,10 +319,14 @@ watch(
   { immediate: true },
 )
 watch(open, async (value) => {
-  if (value) {
+  if (value && focusOnOpen) {
     await nextTick()
     closeButton.value?.focus({ preventScroll: true })
   }
+})
+
+watch(operatorActivity, () => {
+  if (!props.embedded && available.value) void revealChat(false)
 })
 watch([() => messages.value.length, step, open], async () => {
   await nextTick()

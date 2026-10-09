@@ -4,6 +4,26 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   page,
   request,
 }) => {
+  await page.addInitScript(() => {
+    const NativeAudioContext = window.AudioContext
+
+    window.AudioContext = class extends NativeAudioContext {
+      createOscillator(): OscillatorNode {
+        const oscillator = super.createOscillator()
+        const start = oscillator.start.bind(oscillator)
+
+        oscillator.start = (when?: number): void => {
+          const root = document.documentElement
+          root.dataset.testChimes = String(
+            Number(root.dataset.testChimes || 0) + 1,
+          )
+          start(when)
+        }
+
+        return oscillator
+      }
+    }
+  })
   await request.post('http://127.0.0.1:4311/__demo/state', {
     data: { reset: true },
   })
@@ -44,6 +64,7 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   await expect(
     frame.getByText('Спасибо за обращение!', { exact: false }),
   ).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('data-test-chimes', '1')
   await frame.locator('.toolbar .attach-file-button').click()
   const choosing = page.waitForEvent('filechooser')
   await frame.getByText('Файл', { exact: true }).last().click()

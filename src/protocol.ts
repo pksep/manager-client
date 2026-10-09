@@ -94,6 +94,41 @@ export interface Message {
   readAt?: string
   operationId?: string
 }
+
+export interface OperatorTyping {
+  id: string
+  inquiryId: string
+  startedAt: string
+  expiresAt: string
+}
+
+export function parseOperatorTyping(value: unknown): OperatorTyping {
+  const signal = value as Partial<OperatorTyping> | null
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
+
+  if (
+    !signal ||
+    typeof signal.id !== 'string' ||
+    !uuid.test(signal.id) ||
+    typeof signal.inquiryId !== 'string' ||
+    !uuid.test(signal.inquiryId) ||
+    typeof signal.startedAt !== 'string' ||
+    !Number.isFinite(Date.parse(signal.startedAt)) ||
+    typeof signal.expiresAt !== 'string' ||
+    !Number.isFinite(Date.parse(signal.expiresAt)) ||
+    Date.parse(signal.expiresAt) <= Date.parse(signal.startedAt)
+  ) {
+    throw new Error('Некорректный сигнал набора сообщения')
+  }
+
+  return {
+    id: signal.id,
+    inquiryId: signal.inquiryId,
+    startedAt: signal.startedAt,
+    expiresAt: signal.expiresAt,
+  }
+}
+
 export interface Session {
   token: string
   visitorToken?: string

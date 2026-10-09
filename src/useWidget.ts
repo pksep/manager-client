@@ -13,6 +13,7 @@ import {
   contactErrors,
   operatorOnline,
   parseMessage,
+  parseOperatorTyping,
   parseSupportDraft,
   type EmbedOptions,
   type WidgetConfig,
@@ -32,6 +33,7 @@ interface WidgetState {
   available: Ref<boolean>
   open: Ref<boolean>
   menu: Ref<boolean>
+  operatorActivity: Ref<number>
   config: Ref<WidgetConfig | undefined>
   inquiryId: Ref<string | null>
   messages: Ref<Message[]>
@@ -53,6 +55,7 @@ interface WidgetState {
 export function useWidget(
   options: EmbedOptions,
   onDraft?: (draft: SupportDraft) => void,
+  onReply?: (messageId: string) => void,
 ): WidgetState {
   const saved = options.supportSessionToken
     ? parseSupportDraft(options.supportDraft)
@@ -63,6 +66,10 @@ export function useWidget(
     menu = ref(false)
   const config = ref<WidgetConfig>(),
     inquiryId = ref<string | null>(null)
+  const operatorActivity = ref(0)
+  let lastTypingId: string | undefined
+  let receivedSnapshot = false
+  const knownMessageIds = new Set<string>()
   const messages = ref<Message[]>([]),
     step = ref<'conversation' | 'contacts'>('conversation')
   const contacts = reactive<Contacts>({ name: '', phone: '', email: '' })
@@ -116,6 +123,26 @@ export function useWidget(
 
   watch([draft, files], saveDraft)
 
+  function receiveReply(message: Message): void {
+    if (message.direction === 'incoming' && !knownMessageIds.has(message.id)) {
+      operatorActivity.value++
+      onReply?.(message.id)
+    }
+
+    knownMessageIds.add(message.id)
+  }
+
+  function snapshot(list: Message[], notify: boolean): void {
+    messages.value = list.filter(
+      (message) => message.inquiryId === inquiryId.value,
+    )
+
+    for (const message of messages.value) {
+      if (notify) receiveReply(message)
+      else knownMessageIds.add(message.id)
+    }
+  }
+
   function add(message: Message): void {
     if (message.inquiryId !== inquiryId.value) {
       // A read update can arrive before the first HTTP acknowledgement.
@@ -140,8 +167,10 @@ export function useWidget(
           : undefined) ||
         message.readAt,
     }
-    if (previousIndex < 0) messages.value.push(received)
-    else messages.value[previousIndex] = received
+    if (previousIndex < 0) {
+      messages.value.push(received)
+      receiveReply(message)
+    } else messages.value[previousIndex] = received
     messages.value.sort(
       (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
     )
@@ -149,7 +178,6 @@ export function useWidget(
 
   function disconnect(): void {
     available.value = false
-    open.value = false
     menu.value = false
     generation++
     connecting = false
@@ -182,8 +210,10 @@ export function useWidget(
       config.value = session.config
       serverOffset = Date.parse(session.serverTime) - Date.now()
       serverNow.value = new Date(Date.now() + serverOffset)
+      const connectedAt = Date.parse(session.serverTime)
       inquiryId.value = session.inquiryId
       messages.value = session.messages
+      if (!receivedSnapshot) snapshot(session.messages, false)
       // A lost HTTP acknowledgement can be recovered from the current session snapshot.
       if (
         operationId &&
@@ -210,11 +240,8 @@ export function useWidget(
             )
               throw new Error('Некорректная готовность сервиса')
             inquiryId.value = data.inquiryId
-            messages.value = data.messages
-              .map(parseMessage)
-              .filter(
-                (message: Message) => message.inquiryId === inquiryId.value,
-              )
+            snapshot(data.messages.map(parseMessage), receivedSnapshot)
+            receivedSnapshot = true
             if (
               operationId &&
               messages.value.some(
@@ -242,6 +269,26 @@ export function useWidget(
             schedulePing()
           } else if (data.type === 'message' && available.value)
             add(parseMessage(data.message))
+          else if (data.type === 'typing' && available.value) {
+            // Необязательный сигнал не должен прерывать доставку сообщений.
+            try {
+              const signal = parseOperatorTyping(data)
+              const now = Date.now() + serverOffset
+
+              if (
+                signal.inquiryId !== inquiryId.value ||
+                signal.id === lastTypingId ||
+                Date.parse(signal.startedAt) < connectedAt ||
+                Date.parse(signal.expiresAt) <= now
+              )
+                return
+
+              lastTypingId = signal.id
+              operatorActivity.value++
+            } catch {
+              return
+            }
+          }
         } catch {
           disconnect()
         }
@@ -253,6 +300,9 @@ export function useWidget(
 
   function schedulePing(): void {
     clearTimeout(heartbeat)
+    // В фоне соединение проверяет сервер: таймеры страницы могут замедляться.
+    if (document.visibilityState === 'hidden') return
+
     heartbeat = setTimeout(() => {
       if (socket?.readyState !== WebSocket.OPEN) return disconnect()
       socket.send(JSON.stringify({ type: 'ping' }))
@@ -375,12 +425,22 @@ export function useWidget(
   }
 
   function wake(): void {
-    if (document.visibilityState === 'visible') {
-      disconnect()
-      clearTimeout(retry)
-      retry = undefined
-      void connect()
+    if (document.visibilityState === 'hidden') {
+      clearTimeout(heartbeat)
+      if (available.value) clearTimeout(handshake)
+      return
     }
+
+    if (available.value && socket?.readyState === WebSocket.OPEN) {
+      schedulePing()
+      return
+    }
+
+    if (connecting) return
+
+    clearTimeout(retry)
+    retry = undefined
+    void connect()
   }
   onMounted(() => {
     void connect()
@@ -403,6 +463,7 @@ export function useWidget(
     available,
     open,
     menu,
+    operatorActivity,
     config,
     inquiryId,
     messages,
