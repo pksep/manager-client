@@ -92,6 +92,12 @@ bun run demo
 
 ## Сборка и подключение
 
+Для интегратора сайта: [Подключение готового виджета](docs/SITE_INTEGRATION.md).
+Файлы виджета и сервис сообщений размещает команда PKSEP; интегратор вставляет
+выданный готовый код.
+
+Для нашей команды: [Сборка, размещение и настройки сервера](docs/WIDGET_HOSTING.md).
+
 ```powershell
 bun run build
 ```
@@ -101,11 +107,11 @@ bun run build
 
 ```html
 <script type="module">
-  import { mount } from 'https://widget.example.com/manager.mjs'
+  import { mount } from 'https://manager.pksep.ru/manager.mjs'
   const widget = mount({
     siteId: 'amotiv',
-    serviceUrl: 'https://manager.example.com',
-    widgetUrl: 'https://widget.example.com/widget.html',
+    serviceUrl: 'https://manager.pksep.ru',
+    widgetUrl: 'https://manager.pksep.ru/widget.html',
     offset: 24,
   })
   // При удалении интеграции: widget.destroy()
@@ -113,7 +119,9 @@ bun run build
 ```
 
 Названия, приветствия, расписание, лимиты и социальные ссылки приходят из
-сервиса. Адреса выше — пример для будущего размещения, не работающие сервисы.
+сервиса. Файлы виджета и сервис сообщений размещены на `https://manager.pksep.ru`.
+`siteId: 'amotiv'` — пример: наша команда заменяет его идентификатором
+подключаемого сайта перед выдачей кода интегратору.
 В iframe не передаются ключи чата/ЕРП. Загрузчик передаёт источник страницы
 без query/hash, заголовок и origin перехода. Сервис обязан проверять эти данные.
 
