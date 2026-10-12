@@ -18,20 +18,25 @@ Vue в проект сайта не требуется: загрузчик со�
 
 ## 1. Подготовить адреса
 
-Все домены ниже — примеры, а не уже размещённые сервисы.
-Перед подключением замените их согласованными рабочими адресами.
+Файлы виджета и `manager-server` используют один домен —
+`https://manager.pksep.ru`. Адреса подключаемого сайта и `siteId` ниже остаются
+примерами: перед выдачей кода замените их данными конкретного сайта.
 
-| Значение             | Пример                        | Назначение                                        |
-| -------------------- | ----------------------------- | ------------------------------------------------- |
-| Адрес сайта          | `https://example.com`         | Страницы, где посетитель открывает виджет         |
-| Адрес файлов виджета | `https://widget.example.com`  | Статический HTTPS-хостинг сборки `manager-client` |
-| `serviceUrl`         | `https://manager.example.com` | Публичный HTTPS-адрес `manager-server`            |
-| `siteId`             | `amotiv-site`                 | Публичный идентификатор записи сайта на сервере   |
+| Значение             | Пример                     | Назначение                                        |
+| -------------------- | -------------------------- | ------------------------------------------------- |
+| Адрес сайта          | `https://example.com`      | Страницы, где посетитель открывает виджет         |
+| Адрес файлов виджета | `https://manager.pksep.ru` | Статический HTTPS-хостинг сборки `manager-client` |
+| `serviceUrl`         | `https://manager.pksep.ru` | Публичный HTTPS-адрес `manager-server`            |
+| `siteId`             | `amotiv-site`              | Публичный идентификатор записи сайта на сервере   |
 
 `serviceUrl` указывается без завершающего `/v1/widget`: клиент добавляет этот
 префикс сам. Не подставляйте вместо него адрес сервера СЭП Чата.
-Если рабочий `manager-server` размещён на `https://manager.pksep.ru`, используйте
-этот адрес вместо `https://manager.example.com`.
+В коде подключения используйте `serviceUrl: 'https://manager.pksep.ru'`,
+не добавляя `/v1/support`, `/v1/widget`, `/v1/channels` или `/internal/staff`.
+Поддержка авторизованных клиентов и служебные операции не относятся к публичному
+коду подключения. Webhook ВК
+`https://manager.pksep.ru/v1/channels/vk/vk-company` настраивается отдельно для
+канала ВК, а не вставляется на сайт.
 
 Для внешнего сайта нужны HTTPS-адреса. HTTP допускается только на localhost
 для локальной разработки. `siteId` не является секретом и не даёт права
@@ -51,11 +56,11 @@ widget.html
 assets/
 ```
 
-В нашем примере загрузчик и страница iframe доступны по адресам:
+Загрузчик и страница iframe доступны по адресам:
 
 ```text
-https://widget.example.com/manager.js
-https://widget.example.com/widget.html
+https://manager.pksep.ru/manager.js
+https://manager.pksep.ru/widget.html
 ```
 
 Можно разместить сборку в подкаталоге, например `/chat-widget/`:
@@ -118,7 +123,7 @@ bun run build
     "name": "Основной сайт",
     "enabled": true,
     "origins": ["https://example.com", "https://www.example.com"],
-    "widgetOrigins": ["https://widget.example.com"],
+    "widgetOrigins": ["https://manager.pksep.ru"],
     "config": {
       "company": { "name": "НПО Амотив" },
       "welcomeMessages": ["Здравствуйте!", "Чем можем помочь?"],
@@ -173,14 +178,14 @@ bun run build
 или в общий блок скриптов подвала сайта:
 
 ```html
-<script src="https://widget.example.com/manager.js"></script>
+<script src="https://manager.pksep.ru/manager.js"></script>
 
 <script>
   if (!window.sepManagerWidget) {
     window.sepManagerWidget = SepManager.mount({
       siteId: 'amotiv-site',
-      serviceUrl: 'https://manager.example.com',
-      widgetUrl: 'https://widget.example.com/widget.html',
+      serviceUrl: 'https://manager.pksep.ru',
+      widgetUrl: 'https://manager.pksep.ru/widget.html',
       offset: 24,
     })
   }
@@ -202,13 +207,13 @@ bun run build
 
 ```html
 <script type="module">
-  import { mount } from 'https://widget.example.com/manager.mjs'
+  import { mount } from 'https://manager.pksep.ru/manager.mjs'
 
   if (!window.sepManagerWidget) {
     window.sepManagerWidget = mount({
       siteId: 'amotiv-site',
-      serviceUrl: 'https://manager.example.com',
-      widgetUrl: 'https://widget.example.com/widget.html',
+      serviceUrl: 'https://manager.pksep.ru',
+      widgetUrl: 'https://manager.pksep.ru/widget.html',
       offset: 24,
     })
   }
@@ -263,8 +268,8 @@ Upgrade и не разрывать исправные длительные со�
 антивирусом. Режимы без этих проверок допустимы только в изолированной
 локальной разработке, не на публичном сайте.
 
-В списке разрешённых доменов SmartCaptcha укажите **домен iframe**,
-в примере `widget.example.com`. Настройте её ресурсы в CSP страницы виджета
+В списке разрешённых доменов SmartCaptcha укажите **домен iframe** —
+`manager.pksep.ru`. Настройте её ресурсы в CSP страницы виджета
 по [требованиям сервера](https://github.com/pksep/manager-server/blob/main/docs/SECURITY.md).
 Проверку с действительными ключами нужно выполнить в браузере до внешнего запуска.
 
