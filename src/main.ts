@@ -39,6 +39,17 @@ if (
     )
       return
     if (!supportMode && options.supportSessionToken) return
+
+    if (!supportMode) {
+      try {
+        // Origin для выбора сохранённой сессии нельзя подменить в options.
+        if (new URL(publicUrl(options.source?.pageUrl)).origin !== parentOrigin)
+          return
+      } catch {
+        return
+      }
+    }
+
     initialized = true
     window.removeEventListener('message', receive)
     createApp(supportMode ? SupportWidget : Widget, {

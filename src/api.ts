@@ -9,11 +9,17 @@ import {
   type Attachment,
 } from './protocol'
 import { solveCaptcha } from './smart-captcha'
+import {
+  guestSessionKey,
+  readGuestSession,
+  saveGuestSession,
+} from './session-storage'
 
 export class ServiceError extends Error {
   constructor(
     message: string,
     readonly unavailable = false,
+    readonly status?: number,
   ) {
     super(message)
   }
@@ -24,9 +30,14 @@ export class WidgetApi {
   readonly base: string
   private requests = new Set<AbortController>()
   private visitorToken = ''
+  private readonly sessionKey: string | undefined
+
   constructor(readonly options: EmbedOptions) {
     this.base = publicUrl(options.serviceUrl).replace(/\/$/, '')
-    this.token = options.supportSessionToken || ''
+    this.sessionKey = guestSessionKey(this.base, options)
+    this.token =
+      options.supportSessionToken || readGuestSession(this.sessionKey)
+
     try {
       this.visitorToken =
         localStorage.getItem(
@@ -104,6 +115,7 @@ export class WidgetApi {
                     ? 'Проверка не завершена. Повторите отправку.'
                     : 'Не удалось выполнить запрос. Проверьте данные и повторите.',
           response.status >= 500 || response.status === 401,
+          response.status,
         )
       }
       return (await response.json()) as T
@@ -117,22 +129,38 @@ export class WidgetApi {
   }
 
   async session(): Promise<Session> {
-    const session = await this.request<Session>(
-      '/session',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteId: this.options.siteId,
-          source: this.options.source,
-          ...(this.visitorToken ? { visitorToken: this.visitorToken } : {}),
-        }),
-      },
-      5000,
-    )
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        siteId: this.options.siteId,
+        source: this.options.source,
+        ...(this.visitorToken ? { visitorToken: this.visitorToken } : {}),
+      }),
+    }
+    let session: Session
+
+    try {
+      session = await this.request<Session>('/session', init, 5000)
+    } catch (error) {
+      if (
+        !(error instanceof ServiceError) ||
+        error.status !== 401 ||
+        !this.token ||
+        this.options.supportSessionToken
+      )
+        throw error
+
+      // Только явный отказ сессии разрешает начать новую. Сбой связи не стирает доступ.
+      this.token = ''
+      saveGuestSession(this.sessionKey, '')
+      session = await this.request<Session>('/session', init, 5000)
+    }
+
     if (
-      !session.token ||
+      !session ||
       typeof session.token !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(session.token) ||
       !Number.isFinite(Date.parse(session.serverTime)) ||
       !(session.inquiryId === null || typeof session.inquiryId === 'string') ||
       !Array.isArray(session.messages)
@@ -143,6 +171,8 @@ export class WidgetApi {
       .map(parseMessage)
       .filter((m) => m.inquiryId === session.inquiryId)
     this.token = session.token
+    saveGuestSession(this.sessionKey, session.token)
+
     if (
       typeof session.visitorToken === 'string' &&
       session.visitorToken.length <= 110

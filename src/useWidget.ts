@@ -205,8 +205,22 @@ export function useWidget(
     connecting = true
     const current = ++generation
     try {
+      const previousToken = api.token
       const session = await api.session()
       if (disposed || generation !== current) return
+
+      if (previousToken && previousToken !== api.token) {
+        // Загруженные файлы и спорная операция привязаны к прежней сессии.
+        operationId = ''
+        operationHtml = ''
+        uploaded = []
+        uploadedCount.value = 0
+        pendingAcknowledgement = undefined
+        knownMessageIds.clear()
+        receivedSnapshot = false
+        lastTypingId = undefined
+      }
+
       config.value = session.config
       serverOffset = Date.parse(session.serverTime) - Date.now()
       serverNow.value = new Date(Date.now() + serverOffset)
@@ -370,12 +384,17 @@ export function useWidget(
     sending.value = true
     error.value = ''
     const currentOperation = operationId
+    const currentSessionToken = api.token
     saveDraft()
     try {
       for (let i = uploaded.length; i < files.value.length; i++) {
-        uploaded.push(
-          await api.upload(files.value[i], `${currentOperation}:${i}`),
+        const attachment = await api.upload(
+          files.value[i],
+          `${currentOperation}:${i}`,
         )
+        if (disposed || api.token !== currentSessionToken) return
+
+        uploaded.push(attachment)
         uploadedCount.value = uploaded.length
         saveDraft()
       }
@@ -393,7 +412,7 @@ export function useWidget(
             }
           : {}),
       })
-      if (disposed) return
+      if (disposed || api.token !== currentSessionToken) return
       inquiryId.value = result.inquiryId
       add(result.message)
       clearSentDraft()

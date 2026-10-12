@@ -79,4 +79,90 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   await expect(
     frame.getByRole('button', { name: 'Скачать Сборка.txt' }),
   ).toBeVisible()
+  await expect(
+    frame.getByText('Спасибо за обращение!', { exact: false }),
+  ).toHaveCount(2)
+  const savedReplies = await frame
+    .getByText('Спасибо за обращение!', { exact: false })
+    .count()
+
+  await page.reload()
+  await frame.getByRole('button', { name: 'Открыть чат' }).click()
+  await expect(frame.getByText('Проверка сборки', { exact: true })).toHaveCount(
+    1,
+  )
+  await expect(
+    frame.getByText('Спасибо за обращение!', { exact: false }),
+  ).toHaveCount(savedReplies)
+  await expect(
+    frame.getByRole('button', { name: 'Скачать Сборка.txt' }),
+  ).toBeVisible()
+  // Восстановленный снимок не должен озвучиваться как новый ответ.
+  await expect(page.locator('html')).not.toHaveAttribute('data-test-chimes')
+})
+
+test('public iframe rejects a forged parent source before reading a saved session', async ({
+  page,
+  request,
+}): Promise<void> => {
+  await request.post('http://127.0.0.1:4311/__demo/state', {
+    data: { reset: true },
+  })
+  await page.addInitScript((): void => {
+    if (location.origin !== 'http://127.0.0.1:4312') return
+
+    localStorage.setItem(
+      `manager-session:${JSON.stringify(['http://127.0.0.1:4311', 'amotiv-demo', 'http://localhost:4310'])}`,
+      'f'.repeat(64),
+    )
+  })
+  await page.route('**/demo/host.ts', (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `
+      const instance = crypto.randomUUID();
+      const iframe = document.createElement('iframe');
+      iframe.dataset.sepManager = instance;
+      window.addEventListener('message', event => {
+        if (event.source !== iframe.contentWindow || event.data?.type !== 'sep-manager:ready') return;
+        iframe.contentWindow.postMessage({
+          type: 'sep-manager:init', instance,
+          options: {
+            siteId: 'amotiv-demo', serviceUrl: 'http://127.0.0.1:4311',
+            widgetUrl: 'http://127.0.0.1:4312/widget.html',
+            source: { pageUrl: 'http://localhost:4310/', title: '', referrerOrigin: '' }
+          }
+        }, 'http://127.0.0.1:4312');
+        iframe.contentWindow.postMessage({
+          type: 'sep-manager:init', instance,
+          options: {
+            siteId: 'amotiv-demo', serviceUrl: 'http://127.0.0.1:4311',
+            widgetUrl: 'http://127.0.0.1:4312/widget.html',
+            source: { pageUrl: location.origin + '/', title: '', referrerOrigin: '' }
+          }
+        }, 'http://127.0.0.1:4312');
+      });
+      iframe.src = 'http://127.0.0.1:4312/widget.html#' + new URLSearchParams({instance, parentOrigin: location.origin});
+      document.body.append(iframe);
+    `,
+    }),
+  )
+  const started = page.waitForRequest((request) =>
+    request.url().endsWith('/v1/widget/session'),
+  )
+  await page.goto('/')
+  const authorized = await started
+  expect(authorized.postDataJSON().source.pageUrl).toBe(
+    new URL(page.url()).origin + '/',
+  )
+  expect(authorized.headers().authorization).toBeUndefined()
+  await expect(
+    page
+      .frameLocator('iframe[data-sep-manager]')
+      .getByRole('button', { name: 'Открыть чат' }),
+  ).toBeVisible()
+  const state = await (
+    await request.get('http://127.0.0.1:4311/__demo/state')
+  ).json()
+  expect(state.sessionRequests).toBe(1)
 })
