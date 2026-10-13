@@ -2,11 +2,21 @@ import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { resolve } from 'node:path'
 
+const hostPort = Number(process.env.MANAGER_TEST_HOST_PORT || '4310')
+
+if (
+  !Number.isInteger(hostPort) ||
+  hostPort < 1 ||
+  hostPort > 65535 ||
+  hostPort === 4311
+)
+  throw new Error('Некорректный порт изолированной страницы теста')
+
 const root = resolve(import.meta.dirname, '..')
 const children: Bun.Subprocess[] = []
 let stopping = false
 
-function stop(code: number) {
+function stop(code: number): void {
   if (stopping) return
   stopping = true
   process.exitCode = code
@@ -18,13 +28,13 @@ function stop(code: number) {
 process.once('SIGINT', () => stop(0))
 process.once('SIGTERM', () => stop(0))
 
-async function checkPort(port: number) {
+async function checkPort(port: number): Promise<void> {
   await new Promise<void>((accept, reject) => {
     const probe = createServer()
     probe.once('error', (error) =>
       reject(
         new Error(
-          `Не удалось открыть порт ${port}. Если демо уже запущено, откройте http://127.0.0.1:4310/. Причина: ${error.message}`,
+          `Не удалось открыть порт ${port}. Если демо уже запущено, откройте http://127.0.0.1:${hostPort}/. Причина: ${error.message}`,
         ),
       ),
     )
@@ -34,7 +44,7 @@ async function checkPort(port: number) {
   })
 }
 
-function start(name: string, args: string[]) {
+function start(name: string, args: string[]): void {
   const child = Bun.spawn([process.execPath, ...args], {
     cwd: root,
     stdin: 'ignore',
@@ -49,7 +59,7 @@ function start(name: string, args: string[]) {
   })
 }
 
-async function waitForReady(url: string) {
+async function waitForReady(url: string): Promise<void> {
   const deadline = Date.now() + 30_000
   while (!stopping && Date.now() < deadline) {
     try {
@@ -85,7 +95,7 @@ try {
     )
   }
   // Check both ports before starting anything; never stop an existing process.
-  await checkPort(4310)
+  await checkPort(hostPort)
   await checkPort(4311)
   if (!stopping) {
     start('Сервис сообщений', ['demo/server.ts'])
@@ -94,16 +104,16 @@ try {
       '--host',
       '127.0.0.1',
       '--port',
-      '4310',
+      String(hostPort),
       '--strictPort',
       ...(process.argv.includes('--force') ? ['--force'] : []),
     ])
     await Promise.all([
-      waitForReady('http://127.0.0.1:4310/'),
+      waitForReady(`http://127.0.0.1:${hostPort}/`),
       waitForReady('http://127.0.0.1:4311/__demo/state'),
     ])
     if (!stopping) {
-      console.info('\nДемо готово: http://127.0.0.1:4310/')
+      console.info(`\nДемо готово: http://127.0.0.1:${hostPort}/`)
       console.info(
         'Оставьте эту команду работающей. Ctrl+C остановит страницу и сервис сообщений.',
       )

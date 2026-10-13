@@ -470,6 +470,83 @@ test('очистка отменяет скачивание, а поздний ф
   await expect(pending).rejects.toBeInstanceOf(ServiceError)
 })
 
+test('настоящая отмена скачивания возвращает ServiceError, а не AbortError', async (): Promise<void> => {
+  saveGuestSession(storageKey, savedToken)
+  const cancelledFetch = Object.assign(
+    (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ): Promise<Response> =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          (): void => reject(new DOMException('Request aborted', 'AbortError')),
+          { once: true },
+        )
+      }),
+    { preconnect: globalThis.fetch.preconnect },
+  )
+  const fetchMock = spyOn(globalThis, 'fetch').mockImplementation(
+    cancelledFetch,
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(options)
+  const pending = api.download('file')
+  const result = pending.catch((error: unknown): unknown => error)
+
+  api.expireGuestSession()
+
+  const failure = await result
+
+  expect(failure).toBeInstanceOf(ServiceError)
+  expect(failure).toMatchObject({
+    message: 'Нет связи с сервисом',
+    unavailable: true,
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+})
+
+test('сетевая ошибка скачивания преобразуется в ServiceError', async (): Promise<void> => {
+  const fetchMock = spyOn(globalThis, 'fetch').mockRejectedValue(
+    new TypeError('Network disconnected'),
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const pending = new WidgetApi(options).download('file')
+
+  await expect(pending).rejects.toBeInstanceOf(ServiceError)
+  await expect(pending).rejects.toMatchObject({
+    message: 'Нет связи с сервисом',
+    unavailable: true,
+  })
+})
+
+test('скачивание сохраняет уже сформированную ServiceError без замены', async (): Promise<void> => {
+  const failure = new ServiceError('Не удалось скачать файл', false, 403)
+  const fetchMock = spyOn(globalThis, 'fetch').mockRejectedValue(failure)
+  restoreFetch = (): void => fetchMock.mockRestore()
+
+  await expect(new WidgetApi(options).download('file')).rejects.toBe(failure)
+})
+
+test('ошибка чтения содержимого скачивания тоже преобразуется в ServiceError', async (): Promise<void> => {
+  const response = new Response('file')
+  const blob = spyOn(response, 'blob').mockRejectedValue(
+    new DOMException('Body aborted', 'AbortError'),
+  )
+  const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(response)
+  restoreFetch = (): void => {
+    fetchMock.mockRestore()
+    blob.mockRestore()
+  }
+  const pending = new WidgetApi(options).download('file')
+
+  await expect(pending).rejects.toBeInstanceOf(ServiceError)
+  await expect(pending).rejects.toMatchObject({
+    message: 'Нет связи с сервисом',
+    unavailable: true,
+  })
+})
+
 test('без допустимого родительского источника сохранение доступа отключено', (): void => {
   expect(
     guestSessionKey(options.serviceUrl, { ...options, source: undefined }),

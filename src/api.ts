@@ -314,6 +314,10 @@ export class WidgetApi {
         throw new ServiceError('Сессия виджета завершена', true)
 
       return blob
+    } catch (error) {
+      if (error instanceof ServiceError) throw error
+
+      throw new ServiceError('Нет связи с сервисом', true)
     } finally {
       clearTimeout(timer)
       this.requests.delete(controller)
