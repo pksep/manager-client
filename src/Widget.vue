@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 import DOMPurify from 'dompurify'
 import {
   Avatar,
@@ -25,6 +33,7 @@ import {
   type FrameMode,
   type PanelMove,
   type SupportDraft,
+  initialOpenDeadlineKey,
 } from './protocol'
 import { useWidget } from './useWidget'
 import { usePanelDrag } from './usePanelDrag'
@@ -101,6 +110,18 @@ const emojiPreloaded = ref(false)
 let warmup: number | undefined
 let warmupUsesIdle = false
 const panelTransition = ref<'idle' | 'opening' | 'closing'>('idle')
+
+const initialMessage = computed((): string =>
+  props.embedded ? '' : props.options.initialMessage || '',
+)
+const hostDeadline = inject(initialOpenDeadlineKey, undefined)
+const automaticDeadline =
+  props.options.autoOpenDelayMs === undefined
+    ? undefined
+    : (hostDeadline ?? Date.now() + props.options.autoOpenDelayMs)
+let automaticTimer: ReturnType<typeof setTimeout> | undefined
+let automaticOpenConsumed = false
+
 let openingFrame: number | undefined
 let closingTimer: number | undefined
 let ignoreNextLauncherFocus = false
@@ -136,6 +157,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', interaction, true)
   cancelWarmup()
   clearTimeout(leaveTimer)
+  clearTimeout(automaticTimer)
+  document.removeEventListener('visibilitychange', scheduleAutomaticOpen)
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   if (closingTimer !== undefined) window.clearTimeout(closingTimer)
 })
@@ -279,6 +302,43 @@ async function revealChat(focus: boolean): Promise<void> {
     })
   })
 }
+
+/** Один раз для новой переписки; не повторяет ручное открытие и не крадёт фокус. */
+function scheduleAutomaticOpen(): void {
+  clearTimeout(automaticTimer)
+  automaticTimer = undefined
+  if (
+    props.embedded ||
+    automaticDeadline === undefined ||
+    automaticOpenConsumed
+  )
+    return
+
+  if (open.value || inquiryId.value) {
+    automaticOpenConsumed = true
+
+    return
+  }
+
+  const remaining = automaticDeadline - Date.now()
+  if (remaining > 0) {
+    automaticTimer = setTimeout(scheduleAutomaticOpen, remaining)
+
+    return
+  }
+
+  if (!available.value || document.visibilityState === 'hidden') return
+
+  automaticOpenConsumed = true
+  void revealChat(false)
+}
+
+watch([available, open, inquiryId], scheduleAutomaticOpen, { immediate: true })
+
+onMounted((): void => {
+  document.addEventListener('visibilitychange', scheduleAutomaticOpen)
+})
+
 async function closeChat(): Promise<void> {
   if (!open.value || panelTransition.value === 'closing') return
 
@@ -502,7 +562,26 @@ watch([() => messages.value.length, step, open], async () => {
             aria-live="polite"
             aria-relevant="additions"
           >
-            <div v-if="!inquiryId" class="welcome-messages">
+            <div
+              v-if="!inquiryId && initialMessage"
+              class="message-row site-greeting"
+            >
+              <Avatar
+                :initials="config.company.name"
+                :default-image="companyMark"
+                :alt="config.company.name"
+                class="message-avatar"
+              />
+              <ChatMessageSurface :outgoing="false">
+                <div class="message-heading">
+                  <span class="message-author">{{ config.company.name }}</span>
+                </div>
+                <div class="message-html initial-message-text">
+                  {{ initialMessage }}
+                </div>
+              </ChatMessageSurface>
+            </div>
+            <div v-else-if="!inquiryId" class="welcome-messages">
               <Button
                 v-for="(message, index) in config.welcomeMessages"
                 :key="index"

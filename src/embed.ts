@@ -1,4 +1,9 @@
-import { publicUrl, type EmbedOptions, type FrameMode } from './protocol'
+import {
+  parseWidgetSiteOptions,
+  publicUrl,
+  type EmbedOptions,
+  type FrameMode,
+} from './protocol'
 import { NotificationSound } from './notification-sound'
 
 interface WidgetHandle {
@@ -9,6 +14,7 @@ interface WidgetHandle {
 export function mount(options: EmbedOptions): WidgetHandle {
   options = {
     ...options,
+    ...parseWidgetSiteOptions(options),
     source: {
       pageUrl: location.origin + location.pathname,
       title: document.title.slice(0, 200),
@@ -22,6 +28,10 @@ export function mount(options: EmbedOptions): WidgetHandle {
   if (!/^[\w-]{1,100}$/.test(options.siteId))
     throw new Error('Некорректный siteId')
   const instance = crypto.randomUUID()
+  const autoOpenAt =
+    options.autoOpenDelayMs === undefined
+      ? undefined
+      : Date.now() + options.autoOpenDelayMs
   widgetUrl.hash = new URLSearchParams({
     instance,
     parentOrigin: location.origin,
@@ -40,6 +50,7 @@ export function mount(options: EmbedOptions): WidgetHandle {
   let mode: FrameMode = 'hidden'
   let menuHeight = 160
   let alive = true
+  let hasOpened = false
   const sound = new NotificationSound()
   const unlockSound = (event: Event): void => {
     if (event.isTrusted) sound.unlock()
@@ -110,7 +121,14 @@ export function mount(options: EmbedOptions): WidgetHandle {
       sound.notify(event.data.messageId)
     if (event.data.type === 'sep-manager:ready') {
       frame.contentWindow?.postMessage(
-        { type: 'sep-manager:init', instance, options },
+        {
+          type: 'sep-manager:init',
+          instance,
+          options: hasOpened
+            ? { ...options, autoOpenDelayMs: undefined }
+            : options,
+          autoOpenAt,
+        },
         widgetUrl.origin,
       )
     }
@@ -119,6 +137,7 @@ export function mount(options: EmbedOptions): WidgetHandle {
       ['hidden', 'launcher', 'menu', 'panel'].includes(event.data.mode)
     ) {
       mode = event.data.mode
+      if (mode === 'panel') hasOpened = true
       if (mode !== 'panel') dragOrigin = undefined
       menuHeight = Math.min(
         420,

@@ -80,3 +80,34 @@ test('production loader and iframe complete an inquiry across two origins', asyn
     frame.getByRole('button', { name: 'Скачать Сборка.txt' }),
   ).toBeVisible()
 })
+
+test('site options work with the built loader and iframe on different origins', async ({
+  page,
+  request,
+}): Promise<void> => {
+  await request.post('http://127.0.0.1:4311/__demo/state', {
+    data: { reset: true },
+  })
+  await page.route('**/demo/host.ts', (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `
+      import { mount } from 'http://127.0.0.1:4312/manager.mjs';
+      mount({ siteId:'amotiv-demo', serviceUrl:'http://127.0.0.1:4311', widgetUrl:'http://127.0.0.1:4312/widget.html', initialMessage:'Здравствуйте! Какой вопрос?', autoOpenDelayMs:0 });
+    `,
+    }),
+  )
+  await page.goto('/')
+  const frame = page.frameLocator('iframe[data-sep-manager]')
+  await expect(frame.getByRole('dialog')).toBeVisible()
+  await expect(frame.locator('.initial-message-text')).toHaveText(
+    'Здравствуйте! Какой вопрос?',
+  )
+  await frame.locator('.composer .tiptap').fill('Нужна консультация')
+  await frame.locator('.composer .tiptap').press('Enter')
+  await expect(frame.getByText('Как с вами связаться?')).toBeVisible()
+  expect(
+    (await (await request.get('http://127.0.0.1:4311/__demo/state')).json())
+      .messages,
+  ).toBe(0)
+})

@@ -517,6 +517,9 @@ a svg {
   color: var(--text-secondary);
   margin-top: 2px;
 }
+.initial-message-text {
+  white-space: pre-line;
+}
 .launcher-area {
   position: absolute;
   right: 0;
