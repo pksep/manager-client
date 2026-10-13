@@ -6,7 +6,12 @@ interface PortCheck {
   output: string
 }
 
-async function checkHostPort(port: string): Promise<PortCheck> {
+async function checkHostPort(
+  port: string,
+  entrypoint:
+    | './playwright.config.ts'
+    | './demo/start.ts' = './playwright.config.ts',
+): Promise<PortCheck> {
   const environment: Record<string, string> = {}
 
   for (const [name, value] of Object.entries(process.env)) {
@@ -14,7 +19,7 @@ async function checkHostPort(port: string): Promise<PortCheck> {
   }
 
   const child = Bun.spawn(
-    [process.execPath, '-e', "await import('./playwright.config.ts')"],
+    [process.execPath, '-e', `await import(${JSON.stringify(entrypoint)})`],
     {
       cwd: resolve(import.meta.dir, '../..'),
       env: { ...environment, MANAGER_TEST_HOST_PORT: port },
@@ -56,3 +61,12 @@ test.each(['0', '-1', '65536', '4310.5', 'NaN'])(
   },
   20000,
 )
+
+test('команда демо отвергает конфликтующий порт до запуска процессов', async (): Promise<void> => {
+  const result = await checkHostPort('4311', './demo/start.ts')
+
+  expect(result.exitCode).not.toBe(0)
+  expect(result.output).toContain(
+    'Некорректный порт изолированной страницы теста',
+  )
+}, 20000)
