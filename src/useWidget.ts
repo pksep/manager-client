@@ -44,6 +44,7 @@ interface WidgetState {
   error: Ref<string>
   sending: Ref<boolean>
   uploadedCount: Ref<number>
+  sessionVersion: Ref<number>
   online: ComputedRef<boolean>
   canSubmit: ComputedRef<boolean>
   submitDisabledReason: ComputedRef<string>
@@ -61,6 +62,7 @@ export function useWidget(
     ? parseSupportDraft(options.supportDraft)
     : undefined
   const api = new WidgetApi(options)
+  const sessionVersion = ref(0)
   const available = ref(false),
     open = ref(false),
     menu = ref(false)
@@ -87,6 +89,8 @@ export function useWidget(
     retry: ReturnType<typeof setTimeout> | undefined
   let handshake: ReturnType<typeof setTimeout> | undefined,
     heartbeat: ReturnType<typeof setTimeout> | undefined
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined
+  let sendingVersion = 0
   let disposed = false,
     connecting = false,
     attempts = 0,
@@ -106,6 +110,7 @@ export function useWidget(
   )
   const canSubmit = computed(() => !submitDisabledReason.value)
   const clock = setInterval(() => {
+    if (expirePublicSession()) wake()
     serverNow.value = new Date(Date.now() + serverOffset)
   }, 15000)
 
@@ -200,13 +205,70 @@ export function useWidget(
       )
   }
 
+  /** Очищает только браузерный виджет; не удаляет данные обращения на сервере. */
+  function expirePublicSession(): boolean {
+    if (!api.guestExpired()) return false
+
+    api.expireGuestSession()
+    clearTimeout(expiryTimer)
+    disconnect()
+    forgetPublicConversation()
+
+    return true
+  }
+
+  function forgetPublicConversation(): void {
+    open.value = false
+    inquiryId.value = null
+    messages.value = []
+    knownMessageIds.clear()
+    receivedSnapshot = false
+    lastTypingId = undefined
+    sendingVersion++
+    sending.value = false
+    clearSentDraft()
+    Object.assign(contacts, { name: '', phone: '', email: '' })
+    sessionVersion.value++
+  }
+
+  function scheduleExpiry(): void {
+    clearTimeout(expiryTimer)
+    const deadline = api.guestExpiresAt
+    if (deadline === undefined) return
+
+    expiryTimer = setTimeout(
+      () => {
+        if (expirePublicSession()) wake()
+      },
+      Math.max(0, deadline - Date.now()),
+    )
+  }
+
   async function connect(): Promise<void> {
-    if (disposed || connecting || available.value) return
+    if (disposed || connecting) return
+    expirePublicSession()
+    if (available.value) return
     connecting = true
     const current = ++generation
     try {
+      const previousToken = api.token
       const session = await api.session()
       if (disposed || generation !== current) return
+      scheduleExpiry()
+
+      if (previousToken && previousToken !== api.token) {
+        if (!options.supportSessionToken) forgetPublicConversation()
+        // Загруженные файлы и спорная операция привязаны к прежней сессии.
+        operationId = ''
+        operationHtml = ''
+        uploaded = []
+        uploadedCount.value = 0
+        pendingAcknowledgement = undefined
+        knownMessageIds.clear()
+        receivedSnapshot = false
+        lastTypingId = undefined
+      }
+
       config.value = session.config
       serverOffset = Date.parse(session.serverTime) - Date.now()
       serverNow.value = new Date(Date.now() + serverOffset)
@@ -231,6 +293,11 @@ export function useWidget(
       socket.onclose = disconnect
       socket.onmessage = (event) => {
         if (generation !== current || disposed) return
+        if (expirePublicSession()) {
+          wake()
+
+          return
+        }
         try {
           const data = JSON.parse(event.data)
           if (data.type === 'ready') {
@@ -324,6 +391,11 @@ export function useWidget(
   }
 
   function prepare(payload: MessageDraft): void {
+    if (expirePublicSession()) {
+      wake()
+
+      return
+    }
     if (sending.value || !config.value || !available.value) return
     const selected = [
       ...Array.from(payload.files || []),
@@ -359,6 +431,11 @@ export function useWidget(
   }
 
   async function send(): Promise<void> {
+    if (expirePublicSession()) {
+      wake()
+
+      return
+    }
     if (
       sending.value ||
       !available.value ||
@@ -370,12 +447,18 @@ export function useWidget(
     sending.value = true
     error.value = ''
     const currentOperation = operationId
+    const currentSessionToken = api.token
+    const currentSendingVersion = ++sendingVersion
     saveDraft()
     try {
       for (let i = uploaded.length; i < files.value.length; i++) {
-        uploaded.push(
-          await api.upload(files.value[i], `${currentOperation}:${i}`),
+        const attachment = await api.upload(
+          files.value[i],
+          `${currentOperation}:${i}`,
         )
+        if (disposed || api.token !== currentSessionToken) return
+
+        uploaded.push(attachment)
         uploadedCount.value = uploaded.length
         saveDraft()
       }
@@ -393,26 +476,42 @@ export function useWidget(
             }
           : {}),
       })
-      if (disposed) return
+      if (disposed || api.token !== currentSessionToken) return
       inquiryId.value = result.inquiryId
       add(result.message)
       clearSentDraft()
     } catch (cause) {
+      if (
+        disposed ||
+        currentSendingVersion !== sendingVersion ||
+        api.token !== currentSessionToken
+      )
+        return
+
       error.value =
         cause instanceof Error
           ? cause.message
           : 'Не удалось отправить сообщение'
       if (cause instanceof ServiceError && cause.unavailable) disconnect()
     } finally {
-      sending.value = false
-      saveDraft()
+      if (currentSendingVersion === sendingVersion) {
+        sending.value = false
+        saveDraft()
+      }
     }
   }
 
   async function download(file: Attachment): Promise<void> {
+    if (expirePublicSession()) {
+      wake()
+
+      return
+    }
+
+    const currentToken = api.token
     try {
       const blob = await api.download(file.id)
-      if (disposed) return
+      if (disposed || api.token !== currentToken || api.guestExpired()) return
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -420,11 +519,14 @@ export function useWidget(
       anchor.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch {
+      if (disposed || api.token !== currentToken) return
       error.value = 'Не удалось скачать файл. Попробуйте ещё раз.'
     }
   }
 
   function wake(): void {
+    if (disposed) return
+    expirePublicSession()
     if (document.visibilityState === 'hidden') {
       clearTimeout(heartbeat)
       if (available.value) clearTimeout(handshake)
@@ -452,6 +554,7 @@ export function useWidget(
     saveDraft()
     disposed = true
     clearInterval(clock)
+    clearTimeout(expiryTimer)
     clearTimeout(retry)
     disconnect()
     api.dispose()
@@ -474,6 +577,7 @@ export function useWidget(
     error,
     sending,
     uploadedCount,
+    sessionVersion,
     online,
     canSubmit,
     submitDisabledReason,

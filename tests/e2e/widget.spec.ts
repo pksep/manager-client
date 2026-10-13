@@ -733,10 +733,11 @@ test('история использует скролл sep-yui, длинный �
   await page.screenshot({ path: 'test-results/widget-scroll.png' })
 })
 
-test('новая загрузка не раскрывает историю, HTML ответа очищается', async ({
+test('свой диалог восстанавливается, другой браузер не получает историю, HTML ответа очищается', async ({
   page,
   request,
-}) => {
+  browser,
+}): Promise<void> => {
   await page.goto('/')
   await open(page)
   await firstMessage(page)
@@ -771,10 +772,33 @@ test('новая загрузка не раскрывает историю, HTML
   await expect(frame(page).locator('.message-html a')).toHaveCount(1)
   await page.reload()
   await open(page)
-  await expect(frame(page).locator('.welcome-message')).toHaveCount(3)
+  await expect(frame(page).locator('.welcome-message')).toHaveCount(0)
   await expect(
     frame(page).getByText('Подберите оборудование', { exact: true }),
+  ).toHaveCount(1)
+  await expect(
+    frame(page).getByText('Безопасный ответ', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    frame(page).locator('.message-html img, .message-html script'),
   ).toHaveCount(0)
+
+  const fresh = await browser.newContext()
+
+  try {
+    const freshPage = await fresh.newPage()
+    await freshPage.goto(new URL('/', page.url()).href)
+    await open(freshPage)
+    await expect(frame(freshPage).locator('.welcome-message')).toHaveCount(3)
+    await expect(
+      frame(freshPage).getByText('Подберите оборудование', { exact: true }),
+    ).toHaveCount(0)
+    await expect(
+      frame(freshPage).getByText('Безопасный ответ', { exact: true }),
+    ).toHaveCount(0)
+  } finally {
+    await fresh.close()
+  }
 })
 
 test('посторонний postMessage не может показать скрытый виджет', async ({

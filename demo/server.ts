@@ -1,5 +1,6 @@
 // Local UI fixture only. Never deploy this server or use it as manager-server.
 import type { ServerWebSocket } from 'bun'
+import { randomBytes } from 'node:crypto'
 import {
   contactsValid,
   publicUrl,
@@ -252,9 +253,11 @@ const server = Bun.serve<SocketData>({
       sessionRequests++
       const body = (await req.json()) as { siteId: string }
       if (body.siteId !== 'amotiv-demo') return json({}, 404)
+      if (req.headers.has('authorization') && !guest) return json({}, 401)
+
       if (!guest) {
         guest = {
-          token: crypto.randomUUID(),
+          token: randomBytes(32).toString('hex'),
           inquiryId: null,
           messages: [],
           files: new Map(),

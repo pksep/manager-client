@@ -9,11 +9,18 @@ import {
   type Attachment,
 } from './protocol'
 import { solveCaptcha } from './smart-captcha'
+import {
+  guestSessionKey,
+  readGuestSessionState,
+  saveGuestSession,
+  GUEST_SESSION_TTL_MS,
+} from './session-storage'
 
 export class ServiceError extends Error {
   constructor(
     message: string,
     readonly unavailable = false,
+    readonly status?: number,
   ) {
     super(message)
   }
@@ -24,9 +31,17 @@ export class WidgetApi {
   readonly base: string
   private requests = new Set<AbortController>()
   private visitorToken = ''
+  private readonly sessionKey: string | undefined
+  private sessionRevision = 0
+  private localExpiresAt: number | undefined
+
   constructor(readonly options: EmbedOptions) {
     this.base = publicUrl(options.serviceUrl).replace(/\/$/, '')
-    this.token = options.supportSessionToken || ''
+    this.sessionKey = guestSessionKey(this.base, options)
+    const saved = readGuestSessionState(this.sessionKey)
+    this.token = options.supportSessionToken || saved?.token || ''
+    this.localExpiresAt = saved?.expiresAt
+
     try {
       this.visitorToken =
         localStorage.getItem(
@@ -37,13 +52,40 @@ export class WidgetApi {
     }
   }
 
+  get guestExpiresAt(): number | undefined {
+    return this.localExpiresAt
+  }
+
+  guestExpired(): boolean {
+    return (
+      !this.options.supportSessionToken &&
+      this.localExpiresAt !== undefined &&
+      Date.now() >= this.localExpiresAt
+    )
+  }
+
+  expireGuestSession(): void {
+    if (this.options.supportSessionToken) return
+
+    const stored = readGuestSessionState(this.sessionKey)
+    if (stored?.token === this.token) saveGuestSession(this.sessionKey, '')
+    this.sessionRevision++
+    this.dispose()
+    this.token = ''
+    this.localExpiresAt = undefined
+  }
+
   async request<T>(
     path: string,
     init: RequestInit = {},
     timeout = 8000,
     allowCaptcha = true,
   ): Promise<T> {
+    if (path !== '/session' && this.guestExpired())
+      throw new ServiceError('Сессия виджета завершена', true)
+
     const controller = new AbortController()
+    const revision = this.sessionRevision
     this.requests.add(controller)
     const timer = setTimeout(() => controller.abort(), timeout)
     try {
@@ -56,6 +98,11 @@ export class WidgetApi {
         credentials: 'omit',
         cache: 'no-store',
       })
+      if (
+        revision !== this.sessionRevision ||
+        (path !== '/session' && this.guestExpired())
+      )
+        throw new ServiceError('Сессия виджета завершена', true)
       if (!response.ok) {
         const result: unknown = await response.json().catch(() => null)
         if (
@@ -82,6 +129,9 @@ export class WidgetApi {
                 : 'Не удалось пройти проверку',
             )
           }
+          if (revision !== this.sessionRevision || this.guestExpired())
+            throw new ServiceError('Сессия виджета завершена', true)
+
           headers.set('X-Captcha-Token', token)
           headers.set('X-Captcha-Challenge', result.challenge)
           return await this.request<T>(
@@ -104,9 +154,17 @@ export class WidgetApi {
                     ? 'Проверка не завершена. Повторите отправку.'
                     : 'Не удалось выполнить запрос. Проверьте данные и повторите.',
           response.status >= 500 || response.status === 401,
+          response.status,
         )
       }
-      return (await response.json()) as T
+      const result = (await response.json()) as T
+      if (
+        revision !== this.sessionRevision ||
+        (path !== '/session' && this.guestExpired())
+      )
+        throw new ServiceError('Сессия виджета завершена', true)
+
+      return result
     } catch (error) {
       if (error instanceof ServiceError) throw error
       throw new ServiceError('Нет связи с сервисом', true)
@@ -117,22 +175,43 @@ export class WidgetApi {
   }
 
   async session(): Promise<Session> {
-    const session = await this.request<Session>(
-      '/session',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteId: this.options.siteId,
-          source: this.options.source,
-          ...(this.visitorToken ? { visitorToken: this.visitorToken } : {}),
-        }),
-      },
-      5000,
-    )
+    if (this.guestExpired()) this.expireGuestSession()
+    let revision = this.sessionRevision
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        siteId: this.options.siteId,
+        source: this.options.source,
+        ...(this.visitorToken ? { visitorToken: this.visitorToken } : {}),
+      }),
+    }
+    let session: Session
+
+    try {
+      session = await this.request<Session>('/session', init, 5000)
+    } catch (error) {
+      if (
+        !(error instanceof ServiceError) ||
+        error.status !== 401 ||
+        !this.token ||
+        this.options.supportSessionToken
+      )
+        throw error
+
+      if (revision !== this.sessionRevision)
+        throw new ServiceError('Сессия виджета завершена', true)
+
+      // Только явный отказ сессии разрешает начать новую. Сбой связи не стирает доступ.
+      this.expireGuestSession()
+      revision = this.sessionRevision
+      session = await this.request<Session>('/session', init, 5000)
+    }
+
     if (
-      !session.token ||
+      !session ||
       typeof session.token !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(session.token) ||
       !Number.isFinite(Date.parse(session.serverTime)) ||
       !(session.inquiryId === null || typeof session.inquiryId === 'string') ||
       !Array.isArray(session.messages)
@@ -142,7 +221,17 @@ export class WidgetApi {
     session.messages = session.messages
       .map(parseMessage)
       .filter((m) => m.inquiryId === session.inquiryId)
+    if (revision !== this.sessionRevision || this.guestExpired())
+      throw new ServiceError('Сессия виджета завершена', true)
+
+    if (
+      !this.options.supportSessionToken &&
+      (session.token !== this.token || !this.localExpiresAt)
+    )
+      this.localExpiresAt = Date.now() + GUEST_SESSION_TTL_MS
     this.token = session.token
+    saveGuestSession(this.sessionKey, session.token, this.localExpiresAt)
+
     if (
       typeof session.visitorToken === 'string' &&
       session.visitorToken.length <= 110
@@ -160,7 +249,7 @@ export class WidgetApi {
     return session
   }
 
-  events() {
+  events(): WebSocket {
     return new WebSocket(`${this.base.replace(/^http/, 'ws')}/v1/widget/events`)
   }
 
@@ -198,20 +287,40 @@ export class WidgetApi {
   }
 
   async download(id: string): Promise<Blob> {
-    const response = await fetch(
-      `${this.base}/v1/widget/attachments/${encodeURIComponent(id)}`,
-      {
-        headers: { Authorization: `Bearer ${this.token}` },
-        credentials: 'omit',
-        signal: AbortSignal.timeout(30000),
-      },
-    )
-    if (!response.ok)
-      throw new ServiceError('Не удалось скачать файл', response.status >= 500)
-    return response.blob()
+    if (this.guestExpired())
+      throw new ServiceError('Сессия виджета завершена', true)
+
+    const controller = new AbortController()
+    const revision = this.sessionRevision
+    this.requests.add(controller)
+    const timer = setTimeout(() => controller.abort(), 30000)
+    try {
+      const response = await fetch(
+        `${this.base}/v1/widget/attachments/${encodeURIComponent(id)}`,
+        {
+          headers: { Authorization: `Bearer ${this.token}` },
+          credentials: 'omit',
+          cache: 'no-store',
+          signal: controller.signal,
+        },
+      )
+      if (!response.ok)
+        throw new ServiceError(
+          'Не удалось скачать файл',
+          response.status >= 500,
+        )
+      const blob = await response.blob()
+      if (revision !== this.sessionRevision || this.guestExpired())
+        throw new ServiceError('Сессия виджета завершена', true)
+
+      return blob
+    } finally {
+      clearTimeout(timer)
+      this.requests.delete(controller)
+    }
   }
 
-  dispose() {
+  dispose(): void {
     this.requests.forEach((c) => c.abort())
     this.requests.clear()
   }

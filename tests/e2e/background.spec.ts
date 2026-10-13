@@ -194,23 +194,12 @@ test('недоступное аудио не мешает принимать и 
     'undefined',
   )
   await widget(page).getByRole('button', { name: 'Открыть чат' }).click()
-  // После полной перезагрузки демо создаёт новую сессию, поэтому нужен новый запрос.
-  await widget(page).locator('.composer .tiptap').fill('Новое обращение')
+  // После перезагрузки продолжается прежняя сессия без повторного ввода контактов.
+  await expect(widget(page).getByText('Как с вами связаться?')).toHaveCount(0)
+  await widget(page).locator('.composer .tiptap').fill('Продолжение без звука')
   await widget(page).locator('.composer .tiptap').press('Enter')
-  await widget(page)
-    .getByRole('textbox', { name: 'Имя', exact: true })
-    .fill('Тест')
-  await widget(page)
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 123-45-67')
-  await widget(page)
-    .getByRole('textbox', { name: 'E-mail', exact: true })
-    .fill('noaudio@example.test')
-  await widget(page)
-    .getByRole('button', { name: 'Отправить сообщение', exact: true })
-    .click()
   await expect(
-    widget(page).getByText('Новое обращение', { exact: true }),
+    widget(page).getByText('Продолжение без звука', { exact: true }),
   ).toBeVisible()
   await control(request, { reply: 'Работает без звука' })
   await expect(
