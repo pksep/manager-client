@@ -60,14 +60,25 @@ a svg {
   transform: translateY(0) scale(1);
   transform-origin: right bottom;
   transition:
-    opacity 0.18s ease,
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.34s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.34s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .chat-window--opening,
 .chat-window--closing {
   opacity: 0;
-  transform: translateY(8px) scale(0.97);
+  transform: translateY(18px) scale(0.96);
   pointer-events: none;
+}
+.chat-window--closing {
+  transition-duration: 0.22s;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+.chat-window--host-motion {
+  transition: none;
+  transform: none;
+}
+.chat-window--host-motion.chat-window--closing {
+  opacity: 1;
 }
 .chat-window--collapsed {
   position: absolute;

@@ -3,6 +3,7 @@ import '@pksep/yui/styles'
 import './style.css'
 import Widget from './Widget.vue'
 import SupportWidget from './SupportWidget.vue'
+import { createPanelMotion } from './panel-motion'
 import {
   publicUrl,
   parseWidgetSiteOptions,
@@ -64,6 +65,10 @@ if (
     window.removeEventListener('message', receive)
     createApp(supportMode ? SupportWidget : Widget, {
       options,
+      panelMotion:
+        !supportMode && event.data.capabilities?.panelMotion === true
+          ? createPanelMotion(instance, parentOrigin)
+          : undefined,
       onFrameState: (state: object): void => {
         parent.postMessage(
           { type: 'sep-manager:state', instance, ...state },

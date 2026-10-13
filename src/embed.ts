@@ -1,10 +1,12 @@
 import {
   parseWidgetSiteOptions,
+  parsePanelMotionRequest,
   publicUrl,
   type EmbedOptions,
   type FrameMode,
 } from './protocol'
 import { NotificationSound } from './notification-sound'
+import { FrameMotion } from './frame-motion'
 
 interface WidgetHandle {
   destroy(): void
@@ -51,6 +53,8 @@ export function mount(options: EmbedOptions): WidgetHandle {
   let menuHeight = 160
   let alive = true
   let hasOpened = false
+  let lastMotionId = 0
+  const motion = new FrameMotion(frame)
   const sound = new NotificationSound()
   const unlockSound = (event: Event): void => {
     if (event.isTrusted) sound.unlock()
@@ -94,7 +98,10 @@ export function mount(options: EmbedOptions): WidgetHandle {
       bottom: 'auto',
       'border-radius':
         mode === 'launcher' ? '50%' : mode === 'panel' ? '20px' : '0',
-      'box-shadow': mode === 'panel' ? '0 0 22px rgba(0,0,0,0.07)' : 'none',
+      'box-shadow':
+        mode === 'panel'
+          ? '0 18px 40px rgba(0,0,0,0.16), 0 3px 10px rgba(0,0,0,0.08)'
+          : 'none',
       'clip-path':
         mode === 'menu'
           ? `polygon(0 0,100% 0,100% 100%,calc(100% - 60px) 100%,calc(100% - 60px) calc(100% - 72px),0 calc(100% - 72px))`
@@ -128,14 +135,61 @@ export function mount(options: EmbedOptions): WidgetHandle {
             ? { ...options, autoOpenDelayMs: undefined }
             : options,
           autoOpenAt,
+          capabilities: { panelMotion: true },
         },
         widgetUrl.origin,
       )
     }
     if (
+      event.data.type === 'sep-manager:motion-reset' &&
+      event.data.id === lastMotionId
+    )
+      motion.reset()
+    const motionRequest =
+      event.data.type === 'sep-manager:motion'
+        ? parsePanelMotionRequest(event.data)
+        : undefined
+    if (motionRequest) {
+      const { id, phase } = motionRequest
+      const finish = (completed: boolean): void => {
+        frame.contentWindow?.postMessage(
+          {
+            type: 'sep-manager:motion-complete',
+            instance,
+            id,
+            completed,
+            width: frame.clientWidth,
+            height: frame.clientHeight,
+          },
+          widgetUrl.origin,
+        )
+      }
+
+      if (id <= lastMotionId) {
+        finish(false)
+
+        return
+      }
+
+      lastMotionId = id
+      if (phase !== 'prepare' && mode !== 'panel') {
+        finish(false)
+
+        return
+      }
+
+      // Hide the whole frame before resizing; inner layout cannot flash through.
+      motion.run(id, phase, finish)
+      if (phase === 'prepare') {
+        mode = 'panel'
+        layout()
+      }
+    }
+    if (
       event.data.type === 'sep-manager:state' &&
       ['hidden', 'launcher', 'menu', 'panel'].includes(event.data.mode)
     ) {
+      if (mode !== event.data.mode) motion.reset()
       mode = event.data.mode
       if (mode === 'panel') hasOpened = true
       if (mode !== 'panel') dragOrigin = undefined
@@ -172,6 +226,8 @@ export function mount(options: EmbedOptions): WidgetHandle {
   let loaded = false
   frame.addEventListener('load', () => {
     if (loaded) {
+      motion.reset()
+      lastMotionId = 0
       mode = 'hidden'
       layout()
     }
@@ -182,6 +238,7 @@ export function mount(options: EmbedOptions): WidgetHandle {
   return {
     destroy(): void {
       alive = false
+      motion.reset()
       window.removeEventListener('message', receive)
       window.removeEventListener('resize', layout)
       window.removeEventListener('pointerdown', unlockSound, true)
