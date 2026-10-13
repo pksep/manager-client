@@ -229,6 +229,7 @@ const server = Bun.serve<SocketData>({
         available,
         online,
         social,
+        autoReply,
         sessions: sessions.size,
         sessionRequests,
         eventConnections,
