@@ -57,6 +57,7 @@ const {
   error,
   sending,
   uploadedCount,
+  sessionVersion,
   online,
   canSubmit,
   submitDisabledReason,
@@ -625,6 +626,7 @@ watch([() => messages.value.length, step, open], async () => {
         :data-emoji-preloaded="emojiPreloaded"
       >
         <ContentEditor
+          :key="sessionVersion"
           v-model="draft"
           ref="editor"
           layout="desktop"

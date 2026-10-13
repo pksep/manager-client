@@ -4,6 +4,7 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   page,
   request,
 }) => {
+  const startedAt = Date.now()
   await page.addInitScript(() => {
     const NativeAudioContext = window.AudioContext
 
@@ -99,6 +100,27 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   ).toBeVisible()
   // Восстановленный снимок не должен озвучиваться как новый ответ.
   await expect(page.locator('html')).not.toHaveAttribute('data-test-chimes')
+
+  const beforeExpiry = await (
+    await request.get('http://127.0.0.1:4311/__demo/state')
+  ).json()
+  await page.clock.setFixedTime(startedAt + 24 * 60 * 60 * 1000 + 60000)
+  const freshSession = page.waitForRequest((request) =>
+    request.url().endsWith('/v1/widget/session'),
+  )
+  await page.reload()
+  expect((await freshSession).headers().authorization).toBeUndefined()
+  await frame.getByRole('button', { name: 'Открыть чат' }).click()
+  await expect(frame.getByText('Проверка сборки', { exact: true })).toHaveCount(
+    0,
+  )
+  await expect(
+    frame.getByRole('button', { name: 'Скачать Сборка.txt' }),
+  ).toHaveCount(0)
+  const afterExpiry = await (
+    await request.get('http://127.0.0.1:4311/__demo/state')
+  ).json()
+  expect(afterExpiry.messages).toBe(beforeExpiry.messages)
 })
 
 test('public iframe rejects a forged parent source before reading a saved session', async ({

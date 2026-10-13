@@ -4,6 +4,8 @@ import {
   guestSessionKey,
   readGuestSession,
   saveGuestSession,
+  readGuestSessionState,
+  GUEST_SESSION_TTL_MS,
 } from '../../src/session-storage'
 import type { EmbedOptions, Session } from '../../src/protocol'
 
@@ -54,6 +56,7 @@ const originalStorage = Object.getOwnPropertyDescriptor(
 )
 let storage: MemoryStorage
 let restoreFetch: (() => void) | undefined
+let restoreClock: (() => void) | undefined
 
 function session(token = newToken): Session {
   return {
@@ -88,6 +91,8 @@ beforeEach((): void => {
 afterEach((): void => {
   restoreFetch?.()
   restoreFetch = undefined
+  restoreClock?.()
+  restoreClock = undefined
 
   if (originalStorage)
     Object.defineProperty(globalThis, 'localStorage', originalStorage)
@@ -102,7 +107,11 @@ test('сохраняется только ключ сессии, не переп
 
   await new WidgetApi(options).session()
 
-  expect([...storage.values]).toEqual([[storageKey, newToken]])
+  expect([...storage.values.keys()]).toEqual([storageKey])
+  expect(JSON.parse(storage.getItem(storageKey)!)).toEqual({
+    token: newToken,
+    expiresAt: expect.any(Number),
+  })
   expect(
     new Headers(fetchMock.mock.calls[0][1]?.headers).has('Authorization'),
   ).toBe(false)
@@ -250,6 +259,7 @@ test('отказ хранилища не блокирует новую пере�
 
 test('поддержка не читает публичный ключ, не сохраняет свой и не заменяет отказ новой сессией', async (): Promise<void> => {
   saveGuestSession(storageKey, savedToken)
+  const previousValue = storage.getItem(storageKey)!
   const supportOptions = { ...options, supportSessionToken: 'c'.repeat(64) }
   const api = new WidgetApi(supportOptions)
   const fetchMock = spyOn(globalThis, 'fetch')
@@ -263,7 +273,201 @@ test('поддержка не читает публичный ключ, не с�
   await api.session()
   await expect(api.session()).rejects.toMatchObject({ status: 401 })
   expect(fetchMock.mock.calls).toHaveLength(2)
-  expect([...storage.values]).toEqual([[storageKey, savedToken]])
+  expect([...storage.values]).toEqual([[storageKey, previousValue]])
+})
+
+test('повторное восстановление не продлевает браузерный срок 24 часа', async (): Promise<void> => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  saveGuestSession(storageKey, savedToken)
+  const fetchMock = spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(Response.json(session(savedToken)))
+    .mockResolvedValueOnce(Response.json(session(savedToken)))
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(options)
+  expect(api.guestExpiresAt).toBe(start + GUEST_SESSION_TTL_MS)
+
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS - 1000)
+  await api.session()
+  await new WidgetApi(options).session()
+  expect(readGuestSessionState(storageKey)?.expiresAt).toBe(
+    start + GUEST_SESSION_TTL_MS,
+  )
+  expect(api.guestExpired()).toBe(false)
+
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS)
+  expect(api.guestExpired()).toBe(true)
+  expect(readGuestSession(storageKey)).toBe('')
+  expect(storage.getItem(storageKey)).toBeNull()
+})
+
+test('через сутки ключ не передаётся при перезагрузке, а чужое хранилище не очищается', async (): Promise<void> => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  saveGuestSession(storageKey, savedToken)
+  storage.setItem('other-storage', 'untouched')
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS)
+  const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+    Response.json(session()),
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+
+  await new WidgetApi(options).session()
+  expect(
+    new Headers(fetchMock.mock.calls[0][1]?.headers).has('Authorization'),
+  ).toBe(false)
+  expect(readGuestSession(storageKey)).toBe(newToken)
+  expect(storage.getItem('other-storage')).toBe('untouched')
+})
+
+test('старый формат получает срок один раз, повторное чтение не обновляет дату', (): void => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  storage.setItem(storageKey, savedToken)
+  expect(readGuestSession(storageKey)).toBe(savedToken)
+
+  clock.mockReturnValue(start + 1000)
+  expect(readGuestSessionState(storageKey)).toEqual({
+    token: savedToken,
+    expiresAt: start + GUEST_SESSION_TTL_MS,
+  })
+})
+
+test('некорректная и чрезмерно длинная дата не разрешает вечное восстановление', (): void => {
+  const now = Date.now()
+  for (const expiresAt of [
+    undefined,
+    'tomorrow',
+    null,
+    -1,
+    now - 1,
+    now + GUEST_SESSION_TTL_MS * 2,
+    1.5,
+  ]) {
+    storage.setItem(
+      storageKey,
+      JSON.stringify({ token: savedToken, expiresAt }),
+    )
+    expect(readGuestSession(storageKey)).toBe('')
+    expect(storage.getItem(storageKey)).toBeNull()
+  }
+})
+
+test('отказ хранилища не отменяет 24-часовой срок в памяти', async (): Promise<void> => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get: (): Storage => {
+      throw new Error('Storage denied')
+    },
+  })
+  const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+    Response.json(session()),
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(options)
+  await api.session()
+
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS)
+  expect(api.guestExpired()).toBe(true)
+})
+
+test('публичный срок не распространяется на авторизованную поддержку', async (): Promise<void> => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  const supportOptions = { ...options, supportSessionToken: 'c'.repeat(64) }
+  const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+    Response.json(session(supportOptions.supportSessionToken)),
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(supportOptions)
+  await api.session()
+
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS * 2)
+  expect(api.guestExpired()).toBe(false)
+  expect(api.guestExpiresAt).toBeUndefined()
+  api.expireGuestSession()
+  expect(api.token).toBe(supportOptions.supportSessionToken)
+  expect(storage.length).toBe(0)
+})
+
+test('сброс истёкшей вкладки не удаляет новый ключ другой вкладки', (): void => {
+  saveGuestSession(storageKey, savedToken)
+  const api = new WidgetApi(options)
+  saveGuestSession(storageKey, newToken)
+
+  api.expireGuestSession()
+  expect(api.token).toBe('')
+  expect(readGuestSession(storageKey)).toBe(newToken)
+})
+
+test('истёкшая сессия не отправляет сообщения и не скачивает старые файлы', async (): Promise<void> => {
+  const start = Date.now()
+  const clock = spyOn(Date, 'now').mockReturnValue(start)
+  restoreClock = (): void => clock.mockRestore()
+  saveGuestSession(storageKey, savedToken)
+  const api = new WidgetApi(options)
+  const fetchMock = spyOn(globalThis, 'fetch').mockResolvedValue(
+    Response.json({}),
+  )
+  restoreFetch = (): void => fetchMock.mockRestore()
+  clock.mockReturnValue(start + GUEST_SESSION_TTL_MS)
+
+  await expect(
+    api.send('old-inquiry', {
+      operationId: 'operation',
+      html: 'draft',
+      attachmentIds: [],
+    }),
+  ).rejects.toBeInstanceOf(ServiceError)
+  await expect(api.download('old-file')).rejects.toBeInstanceOf(ServiceError)
+  expect(fetchMock.mock.calls).toHaveLength(0)
+})
+
+test('ответ старого подключения после очистки не возвращает старый ключ в хранилище', async (): Promise<void> => {
+  saveGuestSession(storageKey, savedToken)
+  let finishRequest: (response: Response) => void = (): void => {
+    throw new Error('Request not started')
+  }
+  const response = new Promise<Response>((resolve) => {
+    finishRequest = resolve
+  })
+  const fetchMock = spyOn(globalThis, 'fetch').mockReturnValue(response)
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(options)
+  const pending = api.session()
+  api.expireGuestSession()
+  finishRequest(Response.json(session(savedToken)))
+
+  await expect(pending).rejects.toBeInstanceOf(ServiceError)
+  expect(api.token).toBe('')
+  expect(readGuestSession(storageKey)).toBe('')
+})
+
+test('очистка отменяет скачивание, а поздний файл не возвращается в новую сессию', async (): Promise<void> => {
+  saveGuestSession(storageKey, savedToken)
+  let finishRequest: (response: Response) => void = (): void => {
+    throw new Error('Request not started')
+  }
+  const response = new Promise<Response>((resolve) => {
+    finishRequest = resolve
+  })
+  const fetchMock = spyOn(globalThis, 'fetch').mockReturnValue(response)
+  restoreFetch = (): void => fetchMock.mockRestore()
+  const api = new WidgetApi(options)
+  const pending = api.download('file')
+  expect(fetchMock.mock.calls[0][1]?.cache).toBe('no-store')
+  api.expireGuestSession()
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+  finishRequest(new Response('private file'))
+
+  await expect(pending).rejects.toBeInstanceOf(ServiceError)
 })
 
 test('без допустимого родительского источника сохранение доступа отключено', (): void => {
