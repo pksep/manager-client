@@ -10,6 +10,11 @@ import {
   type OperatorTyping,
 } from '../src/protocol'
 
+const hostPort = Number(process.env.MANAGER_TEST_HOST_PORT || '4310')
+
+if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535)
+  throw new Error('Некорректный порт изолированной страницы теста')
+
 const config: WidgetConfig = {
   company: { name: 'НПО Амотив' },
   welcomeMessages: [
@@ -122,7 +127,7 @@ const server = Bun.serve<SocketData>({
   async fetch(req, server) {
     const url = new URL(req.url)
     const origin = req.headers.get('origin')
-    const allowed = ['http://127.0.0.1:4310', 'http://127.0.0.1:4312']
+    const allowed = [`http://127.0.0.1:${hostPort}`, 'http://127.0.0.1:4312']
     if (origin && !allowed.includes(origin))
       return new Response('Forbidden', { status: 403 })
     const headers = {

@@ -40,6 +40,16 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   const frame = page.frameLocator('iframe[data-sep-manager]')
   await frame.getByRole('button', { name: 'Открыть чат' }).click()
   const iframe = page.locator('iframe[data-sep-manager]')
+  await expect
+    .poll(() =>
+      iframe.evaluate(
+        (element) =>
+          element
+            .getAnimations()
+            .filter((animation) => animation.playState === 'running').length,
+      ),
+    )
+    .toBe(0)
   const initial = (await iframe.boundingBox())!
   await frame.locator('.chat-header').focus()
   await frame.locator('.chat-header').press('Shift+ArrowLeft')
@@ -79,4 +89,56 @@ test('production loader and iframe complete an inquiry across two origins', asyn
   await expect(
     frame.getByRole('button', { name: 'Скачать Сборка.txt' }),
   ).toBeVisible()
+})
+
+test('classic production loader animates a whole mobile card across two origins', async ({
+  page,
+  request,
+}): Promise<void> => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await request.post('http://127.0.0.1:4311/__demo/state', {
+    data: { reset: true },
+  })
+  await page.route('**/demo/host.ts', (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `
+      const loader = document.createElement('script');
+      loader.src = 'http://127.0.0.1:4312/manager.js';
+      loader.onload = () => window.SepManager.mount({ siteId: 'amotiv-demo', serviceUrl: 'http://127.0.0.1:4311', widgetUrl: 'http://127.0.0.1:4312/widget.html' });
+      document.head.append(loader);
+    `,
+    }),
+  )
+  await page.goto('/')
+  const frame = page.frameLocator('iframe[data-sep-manager]')
+  const iframe = page.locator('iframe[data-sep-manager]')
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await frame.getByRole('button', { name: 'Открыть чат' }).click()
+    await expect(frame.getByRole('dialog')).toBeVisible()
+    await expect
+      .poll(() =>
+        iframe.evaluate((element) => ({
+          opacity: getComputedStyle(element).opacity,
+          width: element.clientWidth,
+          height: element.clientHeight,
+          moving: element
+            .getAnimations()
+            .some((animation) => animation.playState === 'running'),
+        })),
+      )
+      .toEqual({ opacity: '1', width: 342, height: 640, moving: false })
+    await expect(frame.locator('.chat-window')).toHaveClass(
+      /chat-window--host-motion/,
+    )
+    await frame.getByRole('button', { name: 'Закрыть чат' }).click()
+    await expect(
+      frame.getByRole('button', { name: 'Открыть чат' }),
+    ).toBeVisible()
+    await expect
+      .poll(() => iframe.evaluate((element) => element.clientWidth))
+      .toBe(60)
+    await expect(iframe).toHaveCSS('opacity', '1')
+  }
 })

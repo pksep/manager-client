@@ -54,6 +54,36 @@ export function parseSupportDraft(input: unknown): SupportDraft | undefined {
 }
 
 export type FrameMode = 'hidden' | 'launcher' | 'menu' | 'panel'
+
+export type PanelMotionPhase = 'prepare' | 'open' | 'close'
+
+export type PanelMotion = (phase: PanelMotionPhase) => Promise<boolean>
+
+export interface PanelMotionRequest {
+  id: number
+  phase: PanelMotionPhase
+}
+
+export function parsePanelMotionRequest(
+  value: unknown,
+): PanelMotionRequest | undefined {
+  if (!value || typeof value !== 'object') return
+
+  const request = value as Partial<PanelMotionRequest>
+
+  if (
+    typeof request.id !== 'number' ||
+    !Number.isSafeInteger(request.id) ||
+    request.id <= 0 ||
+    (request.phase !== 'prepare' &&
+      request.phase !== 'open' &&
+      request.phase !== 'close')
+  )
+    return
+
+  return { id: request.id, phase: request.phase }
+}
+
 export interface PanelMove {
   phase: 'start' | 'move' | 'end' | 'nudge'
   x: number

@@ -13,6 +13,18 @@ async function open(page: Page) {
   await expect(
     frame(page).getByRole('dialog', { name: 'Чат с компанией' }),
   ).toBeVisible()
+  await expect
+    .poll(() =>
+      page
+        .locator('iframe[data-sep-manager]')
+        .evaluate(
+          (frame) =>
+            frame
+              .getAnimations()
+              .filter((animation) => animation.playState === 'running').length,
+        ),
+    )
+    .toBe(0)
 }
 async function firstMessage(page: Page, text = 'Подберите оборудование') {
   await frame(page).locator('.composer .tiptap').fill(text)
