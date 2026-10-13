@@ -379,7 +379,10 @@ async function closeChat(): Promise<void> {
   openingFrame = undefined
   panelTransition.value = 'closing'
   if (hostMotion.value && props.panelMotion) {
-    if (!(await props.panelMotion('close'))) hostMotion.value = false
+    const completed = await props.panelMotion('close')
+    if (action !== panelAction) return
+
+    if (!completed) hostMotion.value = false
   } else
     await new Promise<void>((resolve) => {
       const timer = window.setTimeout(() => {

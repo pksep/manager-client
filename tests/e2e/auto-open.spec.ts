@@ -154,6 +154,33 @@ test('ответ во время закрытия отменяет сворач�
   page,
   request,
 }): Promise<void> => {
+  await page.addInitScript((): void => {
+    if (window.parent !== window) return
+
+    window.addEventListener(
+      'message',
+      (event: MessageEvent): void => {
+        if (
+          event.data?.type !== 'sep-manager:motion' ||
+          event.data.phase !== 'close' ||
+          event.data.delayed
+        )
+          return
+
+        event.stopImmediatePropagation()
+        setTimeout((): void => {
+          window.dispatchEvent(
+            new MessageEvent('message', {
+              data: { ...event.data, delayed: true },
+              origin: event.origin,
+              source: event.source,
+            }),
+          )
+        }, 1000)
+      },
+      true,
+    )
+  })
   await page.setViewportSize({ width: 390, height: 844 })
   await conversation(page, request)
   await frame(page).getByRole('button', { name: 'Закрыть чат' }).click()
@@ -162,7 +189,10 @@ test('ответ во время закрытия отменяет сворач�
   await expect(
     frame(page).getByText('Ответ во время закрытия', { exact: true }),
   ).toBeVisible()
-  await page.waitForTimeout(250)
+  await page.waitForTimeout(1300)
   await expect(frame(page).getByRole('dialog')).toBeVisible()
+  await expect(frame(page).locator('.chat-window')).toHaveClass(
+    /chat-window--host-motion/,
+  )
   await page.screenshot({ path: 'test-results/widget-auto-open-mobile.png' })
 })
