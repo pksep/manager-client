@@ -13,7 +13,12 @@ import {
 
 const hostPort = Number(process.env.MANAGER_TEST_HOST_PORT || '4310')
 
-if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535)
+if (
+  !Number.isInteger(hostPort) ||
+  hostPort < 1 ||
+  hostPort > 65535 ||
+  hostPort === 4311
+)
   throw new Error('Некорректный порт изолированной страницы теста')
 
 const config: WidgetConfig = {

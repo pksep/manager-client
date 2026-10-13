@@ -322,6 +322,68 @@ test('старый загрузчик: открытие и закрытие ра
   await open(page)
 })
 
+for (const failure of ['rejected', 'timeout'] as const) {
+  test(`ошибка закрытия отключает анимацию хоста для следующего открытия: ${failure}`, async ({
+    page,
+  }): Promise<void> => {
+    await page.addInitScript((failureMode: 'rejected' | 'timeout'): void => {
+      if (window.parent !== window) return
+
+      window.addEventListener(
+        'message',
+        (event: MessageEvent): void => {
+          if (event.data?.type !== 'sep-manager:motion') return
+
+          const root = document.documentElement
+          root.dataset.motionRequests = String(
+            Number(root.dataset.motionRequests || 0) + 1,
+          )
+          if (event.data.phase !== 'close') return
+
+          event.stopImmediatePropagation()
+          if (failureMode === 'timeout') return
+
+          const frame = document.querySelector<HTMLIFrameElement>(
+            'iframe[data-sep-manager]',
+          )
+          frame?.contentWindow?.postMessage(
+            {
+              type: 'sep-manager:motion-complete',
+              instance: event.data.instance,
+              id: event.data.id,
+              completed: false,
+            },
+            location.origin,
+          )
+        },
+        true,
+      )
+    }, failure)
+    await page.goto('/')
+    await open(page)
+    await expect(widget(page).locator('.chat-window')).toHaveClass(
+      /chat-window--host-motion/,
+    )
+    await widget(page).getByRole('button', { name: 'Закрыть чат' }).click()
+    await expect(
+      widget(page).getByRole('button', { name: 'Открыть чат' }),
+    ).toBeVisible()
+    const requestsAfterFailure = await page
+      .locator('html')
+      .getAttribute('data-motion-requests')
+
+    await open(page)
+
+    await expect(widget(page).locator('.chat-window')).not.toHaveClass(
+      /chat-window--host-motion/,
+    )
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-motion-requests',
+      requestsAfterFailure!,
+    )
+  })
+}
+
 test('потерянное подтверждение имеет защитный выход, а не вечное прозрачное окно', async ({
   page,
 }): Promise<void> => {
