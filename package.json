@@ -8,7 +8,7 @@
     "demo": "bun run demo/start.ts",
     "dev": "vite --host 127.0.0.1 --port 4310 --strictPort",
     "demo:server": "bun --watch demo/server.ts",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "node scripts/typecheck.mjs --noEmit",
     "build": "bun run typecheck && vite build && vite build --config vite.loader.config.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4312 --strictPort",
     "test": "bun test tests/unit",
