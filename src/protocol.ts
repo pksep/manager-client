@@ -1,11 +1,71 @@
+import type { InjectionKey } from 'vue'
+
 export interface EmbedOptions {
   siteId: string
   serviceUrl: string
   widgetUrl: string
   offset?: number
+  initialMessage?: string
+  autoOpenDelayMs?: number
   supportSessionToken?: string
   supportDraft?: SupportDraft
   source?: { pageUrl: string; title: string; referrerOrigin: string }
+}
+
+export const MAX_AUTO_OPEN_DELAY_MS = 60 * 60 * 1000
+
+export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
+  'initialOpenDeadline',
+)
+
+export interface WidgetSiteOptions {
+  initialMessage?: string
+  autoOpenDelayMs?: number
+}
+
+/** Параметры сайта не меняют серверные права, историю или правила контактов. */
+export function parseWidgetSiteOptions(input: unknown): WidgetSiteOptions {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('Некорректные настройки виджета')
+
+  const value = input as Partial<WidgetSiteOptions>
+
+  if (
+    value.initialMessage !== undefined &&
+    (typeof value.initialMessage !== 'string' ||
+      value.initialMessage.length > 2000)
+  )
+    throw new Error('Первое сообщение должно быть текстом до 2000 символов')
+
+  if (
+    value.autoOpenDelayMs !== undefined &&
+    (typeof value.autoOpenDelayMs !== 'number' ||
+      !Number.isSafeInteger(value.autoOpenDelayMs) ||
+      value.autoOpenDelayMs < 0 ||
+      value.autoOpenDelayMs > MAX_AUTO_OPEN_DELAY_MS)
+  )
+    throw new Error(
+      'Задержка открытия должна быть целым числом от 0 до 3600000 миллисекунд',
+    )
+
+  return {
+    initialMessage: value.initialMessage?.trim() || undefined,
+    autoOpenDelayMs: value.autoOpenDelayMs,
+  }
+}
+
+/** Новый загрузчик передаёт срок от mount; старый начинает отсчёт при init. */
+export function initialOpenDeadline(
+  delay: number,
+  hostDeadline: unknown,
+): number {
+  const fallback = Date.now() + delay
+
+  return typeof hostDeadline === 'number' &&
+    Number.isSafeInteger(hostDeadline) &&
+    hostDeadline >= 0
+    ? Math.min(hostDeadline, fallback)
+    : fallback
 }
 
 /** Состояние неотправленной операции сохраняется только в открытом приложении. */
@@ -54,6 +114,36 @@ export function parseSupportDraft(input: unknown): SupportDraft | undefined {
 }
 
 export type FrameMode = 'hidden' | 'launcher' | 'menu' | 'panel'
+
+export type PanelMotionPhase = 'prepare' | 'open' | 'close'
+
+export type PanelMotion = (phase: PanelMotionPhase) => Promise<boolean>
+
+export interface PanelMotionRequest {
+  id: number
+  phase: PanelMotionPhase
+}
+
+export function parsePanelMotionRequest(
+  value: unknown,
+): PanelMotionRequest | undefined {
+  if (!value || typeof value !== 'object') return
+
+  const request = value as Partial<PanelMotionRequest>
+
+  if (
+    typeof request.id !== 'number' ||
+    !Number.isSafeInteger(request.id) ||
+    request.id <= 0 ||
+    (request.phase !== 'prepare' &&
+      request.phase !== 'open' &&
+      request.phase !== 'close')
+  )
+    return
+
+  return { id: request.id, phase: request.phase }
+}
+
 export interface PanelMove {
   phase: 'start' | 'move' | 'end' | 'nudge'
   x: number

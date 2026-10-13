@@ -1,7 +1,6 @@
 * {
   box-sizing: border-box;
 }
-
 body {
   margin: 0;
   background: #f4f6f9;
@@ -10,62 +9,209 @@ body {
     14px/1.5 Arial,
     sans-serif;
 }
-
 .demo-panel {
-  width: min(320px, calc(100% - 32px));
-  margin: 16px;
+  width: min(720px, calc(100% - 48px));
+  margin: 32px 24px 100px;
 }
-
-.demo-panel summary {
-  width: fit-content;
-  cursor: pointer;
-  color: #757d8a;
+.demo-heading {
+  margin-bottom: 24px;
 }
-
-.demo-controls {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-  padding: 16px;
-  border: 1px solid #e7e7e7;
-  border-radius: 12px;
-  background: #fff;
+.demo-eyebrow {
+  color: #596b87;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
-
-.demo-controls p {
+.demo-panel h1 {
+  margin: 6px 0;
+  font-size: 28px;
+  line-height: 1.25;
+}
+.demo-panel h2 {
   margin: 0;
-  color: #757d8a;
+  font-size: 17px;
 }
-
-.demo-controls label {
+.demo-panel p {
+  margin: 8px 0 16px;
+  color: #596b87;
+}
+.demo-card {
+  margin-bottom: 20px;
+  padding: 24px;
+  border: 1px solid #e0e6ee;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 3px 15px #17233805;
+}
+.demo-card-heading,
+.demo-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-.demo-controls input {
-  accent-color: #77a6ff;
+.demo-card-heading {
+  justify-content: space-between;
 }
-
-.demo-controls button {
-  border: 1px solid #e7e7e7;
-  border-radius: 7px;
-  padding: 9px;
+.demo-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #edf2fa;
+  color: #596b87;
+  font-size: 12px;
+}
+.demo-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+#integration-config,
+#operator-reply {
+  width: 100%;
+  border: 1px solid #cfd9e6;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8faff;
+  color: #172338;
+}
+#integration-config {
+  min-height: 230px;
+  resize: vertical;
+  font:
+    13px/1.7 Consolas,
+    monospace;
+  tab-size: 2;
+  margin-bottom: 12px;
+}
+#integration-config[aria-invalid='true'] {
+  border-color: #bc3744;
+}
+.demo-panel button {
+  border: 1px solid #d6dfea;
+  border-radius: 8px;
+  padding: 9px 12px;
   background: #fff;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-
-.demo-controls button:hover {
-  border-color: #77a6ff;
+.demo-panel button:hover:not(:disabled) {
+  border-color: #6189ce;
+  background: #f3f7fe;
 }
-
-#control-status {
-  color: #757d8a;
+.demo-panel .demo-primary {
+  color: #fff;
+  background: #366fce;
+  border-color: #366fce;
+}
+.demo-panel button.demo-primary:hover:not(:disabled) {
+  background: #285db5;
+}
+.demo-panel :focus-visible {
+  outline: 2px solid #366fce;
+  outline-offset: 3px;
+}
+.demo-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.demo-panel .demo-hint {
   font-size: 12px;
+  margin-bottom: 0;
 }
-
+.demo-panel code {
+  overflow-wrap: anywhere;
+}
+#config-status,
+#control-status {
+  font-size: 13px;
+  color: #29683d;
+  margin: 12px 0 0;
+}
+#config-status[data-error='true'],
+#control-status[data-error='true'] {
+  color: #a92735;
+}
+#config-status:empty,
 #control-status:empty {
   display: none;
+}
+.demo-panel summary {
+  width: fit-content;
+  cursor: pointer;
+  color: #596b87;
+  margin-top: 16px;
+}
+.demo-code-details {
+  margin-top: 16px;
+}
+.demo-code-details .demo-label {
+  font-size: 12px;
+}
+#integration-code {
+  max-height: 160px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 12px;
+  background: #f8faff;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    12px/1.7 Consolas,
+    monospace;
+}
+.demo-scenarios,
+.demo-controls {
+  border: 0;
+  padding: 0;
+  margin: 16px 0 0;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.demo-scenarios {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.demo-scenarios button {
+  text-align: left;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 14px;
+}
+.demo-scenarios button span {
+  font-size: 12px;
+  color: #596b87;
+}
+.demo-scenarios button[aria-pressed='true'] {
+  border-color: #366fce;
+  background: #eef4ff;
+}
+.demo-controls label:not(.demo-label) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.demo-controls input {
+  accent-color: #366fce;
+}
+.demo-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 900px) {
+  .demo-panel {
+    width: calc(100% - 32px);
+    margin: 20px 16px 100px;
+  }
+  .demo-card {
+    padding: 16px;
+  }
+  .demo-scenarios {
+    grid-template-columns: 1fr;
+  }
 }

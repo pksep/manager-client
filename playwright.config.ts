@@ -1,5 +1,10 @@
 import { defineConfig } from '@playwright/test'
 
+const hostPort = Number(process.env.MANAGER_TEST_HOST_PORT || '4310')
+
+if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535)
+  throw new Error('Некорректный порт изолированной страницы теста')
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -8,7 +13,7 @@ export default defineConfig({
   expect: { timeout: 10000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:4310',
+    baseURL: `http://127.0.0.1:${hostPort}`,
     browserName: 'chromium',
     channel: process.env.PLAYWRIGHT_CHANNEL,
     viewport: { width: 1440, height: 1000 },
@@ -17,8 +22,8 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'bun run dev',
-      url: 'http://127.0.0.1:4310',
+      command: `bun run dev --port ${hostPort}`,
+      url: `http://127.0.0.1:${hostPort}`,
       reuseExistingServer: !process.env.CI,
       timeout: 60000,
     },

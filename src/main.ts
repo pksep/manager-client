@@ -3,8 +3,13 @@ import '@pksep/yui/styles'
 import './style.css'
 import Widget from './Widget.vue'
 import SupportWidget from './SupportWidget.vue'
+import { createPanelMotion } from './panel-motion'
 import {
   publicUrl,
+  parseWidgetSiteOptions,
+  initialOpenDeadline,
+  initialOpenDeadlineKey,
+  type WidgetSiteOptions,
   type EmbedOptions,
   type PanelMove,
   type SupportDraft,
@@ -30,7 +35,13 @@ if (
       event.data.instance !== instance
     )
       return
-    const options = event.data.options as EmbedOptions
+    let siteOptions: WidgetSiteOptions
+    try {
+      siteOptions = parseWidgetSiteOptions(event.data.options)
+    } catch {
+      return
+    }
+    const options: EmbedOptions = { ...event.data.options, ...siteOptions }
     publicUrl(options.serviceUrl)
     if (!/^[\w-]{1,100}$/.test(options.siteId)) return
     if (
@@ -39,10 +50,25 @@ if (
     )
       return
     if (!supportMode && options.supportSessionToken) return
+
+    if (!supportMode) {
+      try {
+        // Origin для выбора сохранённой сессии нельзя подменить в options.
+        if (new URL(publicUrl(options.source?.pageUrl)).origin !== parentOrigin)
+          return
+      } catch {
+        return
+      }
+    }
+
     initialized = true
     window.removeEventListener('message', receive)
     createApp(supportMode ? SupportWidget : Widget, {
       options,
+      panelMotion:
+        !supportMode && event.data.capabilities?.panelMotion === true
+          ? createPanelMotion(instance, parentOrigin)
+          : undefined,
       onFrameState: (state: object): void => {
         parent.postMessage(
           { type: 'sep-manager:state', instance, ...state },
@@ -82,7 +108,14 @@ if (
             parentOrigin,
           )
       },
-    }).mount('#app')
+    })
+      .provide(
+        initialOpenDeadlineKey,
+        !supportMode && options.autoOpenDelayMs !== undefined
+          ? initialOpenDeadline(options.autoOpenDelayMs, event.data.autoOpenAt)
+          : undefined,
+      )
+      .mount('#app')
   }
   window.addEventListener('message', receive)
   parent.postMessage({ type: 'sep-manager:ready', instance }, parentOrigin)

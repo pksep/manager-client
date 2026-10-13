@@ -1,5 +1,6 @@
 // Local UI fixture only. Never deploy this server or use it as manager-server.
 import type { ServerWebSocket } from 'bun'
+import { randomBytes } from 'node:crypto'
 import {
   contactsValid,
   publicUrl,
@@ -9,6 +10,11 @@ import {
   type SendRequest,
   type OperatorTyping,
 } from '../src/protocol'
+
+const hostPort = Number(process.env.MANAGER_TEST_HOST_PORT || '4310')
+
+if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535)
+  throw new Error('Некорректный порт изолированной страницы теста')
 
 const config: WidgetConfig = {
   company: { name: 'НПО Амотив' },
@@ -122,7 +128,7 @@ const server = Bun.serve<SocketData>({
   async fetch(req, server) {
     const url = new URL(req.url)
     const origin = req.headers.get('origin')
-    const allowed = ['http://127.0.0.1:4310', 'http://127.0.0.1:4312']
+    const allowed = [`http://127.0.0.1:${hostPort}`, 'http://127.0.0.1:4312']
     if (origin && !allowed.includes(origin))
       return new Response('Forbidden', { status: 403 })
     const headers = {
@@ -224,6 +230,7 @@ const server = Bun.serve<SocketData>({
         available,
         online,
         social,
+        autoReply,
         sessions: sessions.size,
         sessionRequests,
         eventConnections,
@@ -246,9 +253,11 @@ const server = Bun.serve<SocketData>({
       sessionRequests++
       const body = (await req.json()) as { siteId: string }
       if (body.siteId !== 'amotiv-demo') return json({}, 404)
+      if (req.headers.has('authorization') && !guest) return json({}, 401)
+
       if (!guest) {
         guest = {
-          token: crypto.randomUUID(),
+          token: randomBytes(32).toString('hex'),
           inquiryId: null,
           messages: [],
           files: new Map(),

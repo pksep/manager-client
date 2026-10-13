@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  inject,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 import DOMPurify from 'dompurify'
 import {
   Avatar,
@@ -24,14 +32,20 @@ import {
   type EmbedOptions,
   type FrameMode,
   type PanelMove,
+  type PanelMotion,
   type SupportDraft,
+  initialOpenDeadlineKey,
 } from './protocol'
 import { useWidget } from './useWidget'
 import { usePanelDrag } from './usePanelDrag'
 import { vCompactMessage } from './compactMessage'
 
 const props = withDefaults(
-  defineProps<{ options: EmbedOptions; embedded?: boolean }>(),
+  defineProps<{
+    options: EmbedOptions
+    embedded?: boolean
+    panelMotion?: PanelMotion
+  }>(),
   { embedded: false },
 )
 const emit = defineEmits<{
@@ -57,6 +71,7 @@ const {
   error,
   sending,
   uploadedCount,
+  sessionVersion,
   online,
   canSubmit,
   submitDisabledReason,
@@ -101,6 +116,19 @@ const emojiPreloaded = ref(false)
 let warmup: number | undefined
 let warmupUsesIdle = false
 const panelTransition = ref<'idle' | 'opening' | 'closing'>('idle')
+
+const initialMessage = computed((): string =>
+  props.embedded ? '' : props.options.initialMessage || '',
+)
+const hostDeadline = inject(initialOpenDeadlineKey, undefined)
+const automaticDeadline =
+  props.options.autoOpenDelayMs === undefined
+    ? undefined
+    : (hostDeadline ?? Date.now() + props.options.autoOpenDelayMs)
+let automaticTimer: ReturnType<typeof setTimeout> | undefined
+let automaticOpenConsumed = false
+
+const hostMotion = ref(Boolean(props.panelMotion))
 let openingFrame: number | undefined
 let closingTimer: number | undefined
 let ignoreNextLauncherFocus = false
@@ -108,7 +136,7 @@ let focusOnOpen = true
 let panelAction = 0
 
 function transitionDuration(): number {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220
 }
 
 function cancelWarmup(): void {
@@ -136,6 +164,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', interaction, true)
   cancelWarmup()
   clearTimeout(leaveTimer)
+  clearTimeout(automaticTimer)
+  document.removeEventListener('visibilitychange', scheduleAutomaticOpen)
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   if (closingTimer !== undefined) window.clearTimeout(closingTimer)
 })
@@ -262,7 +292,8 @@ async function showChat(): Promise<void> {
 async function revealChat(focus: boolean): Promise<void> {
   if (open.value && panelTransition.value !== 'closing') return
 
-  panelAction++
+  const reversing = open.value && panelTransition.value === 'closing'
+  const action = ++panelAction
   focusOnOpen = focus
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   clearTimeout(leaveTimer)
@@ -271,6 +302,30 @@ async function revealChat(focus: boolean): Promise<void> {
   open.value = true
 
   await nextTick()
+  if (hostMotion.value && props.panelMotion) {
+    if (!reversing) {
+      const prepared = await props.panelMotion('prepare')
+      if (action !== panelAction) return
+      if (!available.value) {
+        panelTransition.value = 'idle'
+
+        return
+      }
+      if (!prepared) hostMotion.value = false
+    }
+
+    if (hostMotion.value) {
+      panelTransition.value = 'idle'
+      await nextTick()
+      const completed = await props.panelMotion('open')
+      if (action !== panelAction) return
+      if (completed) return
+      hostMotion.value = false
+    }
+
+    emit('frameState', { mode: mode.value, menuHeight: menuHeight.value })
+  }
+
   openingFrame = requestAnimationFrame(() => {
     openingFrame = requestAnimationFrame(() => {
       openingFrame = undefined
@@ -279,6 +334,43 @@ async function revealChat(focus: boolean): Promise<void> {
     })
   })
 }
+
+/** Один раз для новой переписки; не повторяет ручное открытие и не крадёт фокус. */
+function scheduleAutomaticOpen(): void {
+  clearTimeout(automaticTimer)
+  automaticTimer = undefined
+  if (
+    props.embedded ||
+    automaticDeadline === undefined ||
+    automaticOpenConsumed
+  )
+    return
+
+  if (open.value || inquiryId.value) {
+    automaticOpenConsumed = true
+
+    return
+  }
+
+  const remaining = automaticDeadline - Date.now()
+  if (remaining > 0) {
+    automaticTimer = setTimeout(scheduleAutomaticOpen, remaining)
+
+    return
+  }
+
+  if (!available.value || document.visibilityState === 'hidden') return
+
+  automaticOpenConsumed = true
+  void revealChat(false)
+}
+
+watch([available, open, inquiryId], scheduleAutomaticOpen, { immediate: true })
+
+onMounted((): void => {
+  document.addEventListener('visibilitychange', scheduleAutomaticOpen)
+})
+
 async function closeChat(): Promise<void> {
   if (!open.value || panelTransition.value === 'closing') return
 
@@ -286,13 +378,16 @@ async function closeChat(): Promise<void> {
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   openingFrame = undefined
   panelTransition.value = 'closing'
-  await new Promise<void>((resolve) => {
-    const timer = window.setTimeout(() => {
-      if (closingTimer === timer) closingTimer = undefined
-      resolve()
-    }, transitionDuration())
-    closingTimer = timer
-  })
+  if (hostMotion.value && props.panelMotion) {
+    await props.panelMotion('close')
+  } else
+    await new Promise<void>((resolve) => {
+      const timer = window.setTimeout(() => {
+        if (closingTimer === timer) closingTimer = undefined
+        resolve()
+      }, transitionDuration())
+      closingTimer = timer
+    })
 
   if (action !== panelAction) return
 
@@ -315,7 +410,15 @@ function keyboard(event: KeyboardEvent): void {
 }
 watch(
   [mode, menuHeight],
-  () => emit('frameState', { mode: mode.value, menuHeight: menuHeight.value }),
+  () => {
+    if (
+      hostMotion.value &&
+      mode.value === 'panel' &&
+      panelTransition.value === 'opening'
+    )
+      return
+    emit('frameState', { mode: mode.value, menuHeight: menuHeight.value })
+  },
   { immediate: true },
 )
 watch(open, async (value) => {
@@ -350,6 +453,7 @@ watch([() => messages.value.length, step, open], async () => {
       class="chat-window"
       :class="{
         'chat-window--collapsed': !open,
+        'chat-window--host-motion': hostMotion,
         'chat-window--opening': panelTransition === 'opening',
         'chat-window--closing': panelTransition === 'closing',
       }"
@@ -502,7 +606,26 @@ watch([() => messages.value.length, step, open], async () => {
             aria-live="polite"
             aria-relevant="additions"
           >
-            <div v-if="!inquiryId" class="welcome-messages">
+            <div
+              v-if="!inquiryId && initialMessage"
+              class="message-row site-greeting"
+            >
+              <Avatar
+                :initials="config.company.name"
+                :default-image="companyMark"
+                :alt="config.company.name"
+                class="message-avatar"
+              />
+              <ChatMessageSurface :outgoing="false">
+                <div class="message-heading">
+                  <span class="message-author">{{ config.company.name }}</span>
+                </div>
+                <div class="message-html initial-message-text">
+                  {{ initialMessage }}
+                </div>
+              </ChatMessageSurface>
+            </div>
+            <div v-else-if="!inquiryId" class="welcome-messages">
               <Button
                 v-for="(message, index) in config.welcomeMessages"
                 :key="index"
@@ -625,6 +748,7 @@ watch([() => messages.value.length, step, open], async () => {
         :data-emoji-preloaded="emojiPreloaded"
       >
         <ContentEditor
+          :key="sessionVersion"
           v-model="draft"
           ref="editor"
           layout="desktop"
