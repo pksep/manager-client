@@ -7,12 +7,17 @@ export interface EmbedOptions {
   offset?: number
   initialMessage?: string
   autoOpenDelayMs?: number
+  customCss?: string
+  showVk?: boolean
+  vkUrl?: string
   supportSessionToken?: string
   supportDraft?: SupportDraft
   source?: { pageUrl: string; title: string; referrerOrigin: string }
 }
 
 export const MAX_AUTO_OPEN_DELAY_MS = 60 * 60 * 1000
+
+export const MAX_CUSTOM_CSS_LENGTH = 16000
 
 export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
   'initialOpenDeadline',
@@ -21,6 +26,9 @@ export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
 export interface WidgetSiteOptions {
   initialMessage?: string
   autoOpenDelayMs?: number
+  customCss?: string
+  showVk?: boolean
+  vkUrl?: string
 }
 
 /** Параметры сайта не меняют серверные права, историю или правила контактов. */
@@ -48,10 +56,57 @@ export function parseWidgetSiteOptions(input: unknown): WidgetSiteOptions {
       'Задержка открытия должна быть целым числом от 0 до 3600000 миллисекунд',
     )
 
+  if (
+    value.customCss !== undefined &&
+    (typeof value.customCss !== 'string' ||
+      value.customCss.length > MAX_CUSTOM_CSS_LENGTH)
+  )
+    throw new Error('CSS должен быть текстом до 16000 символов')
+
+  if (value.showVk !== undefined && typeof value.showVk !== 'boolean')
+    throw new Error('showVk должен быть true или false')
+
   return {
     initialMessage: value.initialMessage?.trim() || undefined,
     autoOpenDelayMs: value.autoOpenDelayMs,
+    ...(value.customCss === undefined ? {} : { customCss: value.customCss }),
+    ...(value.showVk === undefined ? {} : { showVk: value.showVk }),
+    ...(value.vkUrl === undefined ? {} : { vkUrl: vkLink(value.vkUrl) }),
   }
+}
+
+/** Ссылка ведёт только на ВК, а не на подменённый домен или исполняемый URL. */
+function vkLink(value: unknown): string {
+  const url = new URL(publicUrl(value))
+
+  if (
+    url.protocol !== 'https:' ||
+    url.port ||
+    !['vk.ru', 'vk.com', 'www.vk.ru', 'www.vk.com', 'vk.me'].includes(
+      url.hostname,
+    ) ||
+    url.href.length > 2048
+  )
+    throw new Error('vkUrl должен быть HTTPS-ссылкой на ВКонтакте')
+
+  return url.href
+}
+
+/** Настройки сайта меняют только пункт меню, не подключение канала сообщений. */
+export function applySiteSocialLinks(
+  config: WidgetConfig,
+  options: WidgetSiteOptions,
+): WidgetConfig {
+  if (options.showVk === undefined && options.vkUrl === undefined) return config
+
+  const links = config.socialLinks.filter((link) => link.icon !== 'vk')
+  const previous = config.socialLinks.find((link) => link.icon === 'vk')
+  const url = options.vkUrl || previous?.url
+
+  if (options.showVk !== false && url)
+    links.push({ label: previous?.label || 'ВКонтакте', icon: 'vk', url })
+
+  return { ...config, socialLinks: links }
 }
 
 /** Новый загрузчик передаёт срок от mount; старый начинает отсчёт при init. */

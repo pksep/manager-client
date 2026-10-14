@@ -4,6 +4,7 @@ import './style.css'
 import Widget from './Widget.vue'
 import SupportWidget from './SupportWidget.vue'
 import { createPanelMotion } from './panel-motion'
+import { applyCustomCss } from './widget-styles'
 import {
   publicUrl,
   parseWidgetSiteOptions,
@@ -63,6 +64,8 @@ if (
 
     initialized = true
     window.removeEventListener('message', receive)
+    if (!supportMode) applyCustomCss(document, options.customCss)
+
     createApp(supportMode ? SupportWidget : Widget, {
       options,
       panelMotion:

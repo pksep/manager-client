@@ -11,6 +11,9 @@ const publicKeys = new Set([
   'offset',
   'initialMessage',
   'autoOpenDelayMs',
+  'customCss',
+  'showVk',
+  'vkUrl',
 ])
 
 /** Редактор принимает только публичный конфиг подключения, без токенов и ключей. */
