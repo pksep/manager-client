@@ -17,13 +17,11 @@ async function sendFirst(page: Page): Promise<void> {
     .fill('История после перезагрузки')
   await frame(page).locator('.composer .tiptap').press('Enter')
   await frame(page)
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Тестовый посетитель')
+
   await frame(page)
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 1234567')
-  await frame(page)
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('restore@example.test')
   await frame(page)
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
@@ -72,7 +70,7 @@ test('24 часа очищают открытый виджет при возвр
   await expect(frame(page).locator('.composer .tiptap')).toHaveText('')
   await frame(page).locator('.composer .tiptap').fill('Новый диалог')
   await frame(page).locator('.composer .tiptap').press('Enter')
-  for (const name of ['Имя', 'Телефон', 'E-mail']) {
+  for (const name of ['Как к вам обращаться', 'Телефон или email']) {
     await expect(
       frame(page).getByRole('textbox', { name, exact: true }),
     ).toHaveValue('')
@@ -204,7 +202,7 @@ test('при очистке забываются незавершённая фо
       buffer: Buffer.from('Личные данные'),
     })
   await frame(page)
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Личный контакт')
   await page.clock.setFixedTime(now + GUEST_SESSION_TTL_MS + 1)
   await frame(page)
@@ -223,16 +221,17 @@ test('при очистке забываются незавершённая фо
   await frame(page).locator('.composer .tiptap').fill('Новая первая отправка')
   await frame(page).locator('.composer .tiptap').press('Enter')
   await expect(
-    frame(page).getByRole('textbox', { name: 'Имя', exact: true }),
+    frame(page).getByRole('textbox', {
+      name: 'Как к вам обращаться',
+      exact: true,
+    }),
   ).toHaveValue('')
   await frame(page)
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Новая заявка')
+
   await frame(page)
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 1234567')
-  await frame(page)
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('fresh@example.test')
   await frame(page)
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
@@ -298,11 +297,13 @@ test('отвергнутая сессия заменяется новой без
   await page.goto('/')
   await sendFirst(page)
   // Только демостенд: моделируем истёкшую сессию, не трогая реальные обращения.
+  // Закрываем страницу до сброса: старый сокет не должен успеть создать новую сессию.
+  await page.goto('about:blank')
   await request.post('http://127.0.0.1:4311/__demo/state', {
     data: { reset: true },
   })
 
-  await page.reload()
+  await page.goto('/')
   await open(page)
   await expect(
     frame(page).getByText('История после перезагрузки', { exact: true }),

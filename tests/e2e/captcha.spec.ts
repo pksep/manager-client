@@ -56,13 +56,11 @@ for (const outcome of ['success', 'cancel', 'unavailable'] as const) {
     await frame(page).locator('.composer .tiptap').fill('Заявка с проверкой')
     await frame(page).locator('.composer .tiptap').press('Enter')
     await frame(page)
-      .getByRole('textbox', { name: 'Имя', exact: true })
+      .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
       .fill('Иван Тестов')
+
     await frame(page)
-      .getByRole('textbox', { name: 'Телефон', exact: true })
-      .fill('+79991234567')
-    await frame(page)
-      .getByRole('textbox', { name: 'E-mail', exact: true })
+      .getByRole('textbox', { name: 'Телефон или email', exact: true })
       .fill('ivan@example.test')
     await frame(page)
       .getByRole('button', { name: 'Отправить сообщение', exact: true })
@@ -83,7 +81,10 @@ for (const outcome of ['success', 'cancel', 'unavailable'] as const) {
         ),
       ).toBeVisible()
       await expect(
-        frame(page).getByRole('textbox', { name: 'Имя', exact: true }),
+        frame(page).getByRole('textbox', {
+          name: 'Как к вам обращаться',
+          exact: true,
+        }),
       ).toHaveValue('Иван Тестов')
       await expect(
         frame(page).getByRole('button', {

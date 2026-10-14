@@ -33,13 +33,11 @@ async function firstMessage(page: Page, text = 'Подберите оборуд�
 }
 async function contacts(page: Page) {
   await frame(page)
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Иван Иванов')
+
   await frame(page)
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 123-45-67')
-  await frame(page)
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('ivan@example.com')
 }
 test.beforeEach(async ({ request }) => {
@@ -96,8 +94,15 @@ test('геометрия, приветствия и контакты до пер
   ).json()
   expect(before.messages).toBe(0)
   await contacts(page)
-  await expect(frame(page).getByText('Имя', { exact: true })).toBeVisible()
-  await expect(frame(page).getByText('Телефон', { exact: true })).toBeVisible()
+  await expect(
+    frame(page).getByRole('textbox', {
+      name: 'Как к вам обращаться',
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    frame(page).getByText('Телефон или email', { exact: true }),
+  ).toBeVisible()
   await expect(
     frame(page).getByRole('button', {
       name: 'Отправить сообщение',
@@ -134,13 +139,13 @@ test('причина disabled видна при наведении и фокус
   await firstMessage(page)
   const hint = f.locator('.tooltip-yui-kit__hint')
   await f.locator('.contact-submit-hint').hover()
-  await expect(hint).toContainText('Введите имя.')
-  await expect(hint).toContainText('Введите номер телефона.')
-  await expect(hint).toContainText('Введите email.')
+  await expect(hint).toContainText('Укажите телефон или email для ответа.')
   await page.screenshot({ path: 'test-results/widget-disabled-reason.png' })
   await contacts(page)
   await expect(hint).toHaveCount(0)
-  await f.getByRole('textbox', { name: 'E-mail', exact: true }).fill('wrong')
+  await f
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
+    .fill('wrong@')
   await f.locator('.contact-submit-hint').focus()
   await expect(hint).toHaveText('Проверьте email, например name@example.com.')
   await expect(
@@ -171,12 +176,12 @@ test('текст и контакты компактны, имеют время �
   await firstMessage(page, 'Да')
   await contacts(page)
   const f = frame(page)
-  await f.getByRole('textbox', { name: 'Имя', exact: true }).fill('Alex Sample')
   await f
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+10000000000')
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
+    .fill('Alexandra Maria Sample')
+
   await f
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('alex.sample60@example.org')
   await f
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
@@ -387,7 +392,10 @@ test('ошибка данных оставляет форму и позволя�
     .click()
   await expect(frame(page).getByRole('alert')).toBeVisible()
   await expect(
-    frame(page).getByRole('textbox', { name: 'Имя', exact: true }),
+    frame(page).getByRole('textbox', {
+      name: 'Как к вам обращаться',
+      exact: true,
+    }),
   ).toHaveValue('Иван Иванов')
   await frame(page)
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
