@@ -101,7 +101,10 @@ test('геометрия, приветствия и контакты до пер
     }),
   ).toBeVisible()
   await expect(
-    frame(page).getByText('Телефон или email', { exact: true }),
+    frame(page).getByRole('textbox', {
+      name: 'Телефон или email',
+      exact: true,
+    }),
   ).toBeVisible()
   await expect(
     frame(page).getByRole('button', {

@@ -526,12 +526,7 @@ watch([() => messages.value.length, step, open], async () => {
             @keydown.enter.prevent="send"
           >
             <div class="contact-field">
-              <label for="contact-name"
-                >Как к вам обращаться
-                <span class="contact-field-optional"
-                  >(необязательно)</span
-                ></label
-              >
+              <label for="contact-name">Как к вам обращаться</label>
               <Input
                 v-model="contacts.name"
                 input-id="contact-name"
@@ -543,7 +538,12 @@ watch([() => messages.value.length, step, open], async () => {
               />
             </div>
             <div class="contact-field">
-              <label for="contact-value">Телефон или email</label>
+              <label for="contact-value"
+                >Телефон или email
+                <span class="contact-field-required" aria-hidden="true"
+                  >*</span
+                ></label
+              >
               <Input
                 v-model="contactValue"
                 input-id="contact-value"
