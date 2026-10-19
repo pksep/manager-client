@@ -133,7 +133,7 @@ a svg {
   font-size: 12px;
   font-weight: 400;
   line-height: 15px;
-  color: var(--action-primary-bg);
+  color: var(--widget-accent-text, var(--action-primary-bg));
   margin-top: 3px;
 }
 .operator-status.offline {
@@ -551,7 +551,7 @@ a svg {
   border: 0;
   border-radius: 50%;
   background: var(--action-primary-bg);
-  color: var(--text-white);
+  color: var(--widget-on-accent, var(--text-white));
   padding: 0;
   transition: background 0.15s;
 }
@@ -585,6 +585,12 @@ a svg {
 .contact-menu {
   display: grid;
   gap: 0;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+.messenger-max-icon {
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .contact-menu button,
 .contact-menu a {

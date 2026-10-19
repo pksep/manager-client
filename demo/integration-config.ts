@@ -12,8 +12,13 @@ const publicKeys = new Set([
   'initialMessage',
   'autoOpenDelayMs',
   'customCss',
-  'showVk',
+  'accentColor',
+  'maxUrl',
+  'telegramUrl',
   'vkUrl',
+  'showMax',
+  'showTelegram',
+  'showVk',
 ])
 
 /** Редактор принимает только публичный конфиг подключения, без токенов и ключей. */

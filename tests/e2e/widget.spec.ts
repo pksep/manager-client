@@ -858,6 +858,12 @@ test('сенсорный экран 320 px: открытие и отправка
   const page = await context.newPage()
   await page.goto(baseURL!)
   await frame(page).getByRole('button', { name: 'Открыть чат' }).tap()
+  await expect(
+    frame(page).getByRole('navigation', { name: 'Способы связи' }),
+  ).toBeVisible()
+  await frame(page)
+    .getByRole('button', { name: 'Отправить сообщение', exact: true })
+    .tap()
   await frame(page).locator('.composer .tiptap').fill('Нужна консультация')
   await frame(page).locator('.composer .toolbar .right').tap()
   await contacts(page)

@@ -11,11 +11,11 @@ import {
 import { WidgetApi, ServiceError } from './api'
 import {
   contactErrors,
+  applySiteSocialLinks,
   operatorOnline,
   parseMessage,
   parseOperatorTyping,
   parseSupportDraft,
-  applySiteSocialLinks,
   splitContact,
   type EmbedOptions,
   type WidgetConfig,

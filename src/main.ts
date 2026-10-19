@@ -5,6 +5,7 @@ import Widget from './Widget.vue'
 import SupportWidget from './SupportWidget.vue'
 import { createPanelMotion } from './panel-motion'
 import { applyCustomCss } from './widget-styles'
+import { widgetAccentVariables } from './widget-theme'
 import {
   publicUrl,
   parseWidgetSiteOptions,
@@ -60,6 +61,13 @@ if (
       } catch {
         return
       }
+    }
+
+    if (!supportMode) {
+      for (const [name, value] of Object.entries(
+        widgetAccentVariables(options.accentColor),
+      ))
+        document.documentElement.style.setProperty(name, value)
     }
 
     initialized = true
