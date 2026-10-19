@@ -37,6 +37,8 @@ document.querySelector('#demo')!.innerHTML = `
         <button id="download-config" type="button">Скачать JSON</button>
       </div>
       <p class="demo-hint"><code>initialMessage: ""</code> — стандартные приветствия. <code>autoOpenDelayMs: 3000</code> — открытие через 3 секунды. Отсчёт начинается заново при применении конфига.</p>
+      <p class="demo-hint">Ссылки на мессенджеры задаются здесь: <code>maxUrl</code>, <code>telegramUrl</code>, <code>vkUrl</code>. Укажите публичный HTTPS-адрес своего бота или сообщества. Чтобы скрыть пункт, добавьте <code>showMax: false</code>, <code>showTelegram: false</code> или <code>showVk: false</code>.</p>
+      <p class="demo-hint"><code>accentColor: "#c2410c"</code> задаёт оранжевый цвет кнопок и акцентов виджета. Без параметра сохраняется стандартное оформление.</p>
       <p id="config-status" role="status" aria-live="polite"></p>
       <div class="demo-code-details">
         <button id="toggle-code" type="button" aria-expanded="false" aria-controls="integration-code">Код применённого подключения</button>

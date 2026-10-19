@@ -1,12 +1,11 @@
 import type { InjectionKey } from 'vue'
+import { parseAccentColor } from './widget-theme'
 
-export interface EmbedOptions {
+export interface EmbedOptions extends WidgetSiteOptions {
   siteId: string
   serviceUrl: string
   widgetUrl: string
   offset?: number
-  initialMessage?: string
-  autoOpenDelayMs?: number
   supportSessionToken?: string
   supportDraft?: SupportDraft
   source?: { pageUrl: string; title: string; referrerOrigin: string }
@@ -21,6 +20,82 @@ export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
 export interface WidgetSiteOptions {
   initialMessage?: string
   autoOpenDelayMs?: number
+  accentColor?: string
+  maxUrl?: string
+  telegramUrl?: string
+  vkUrl?: string
+  showMax?: boolean
+  showTelegram?: boolean
+  showVk?: boolean
+}
+
+const messengers = [
+  {
+    icon: 'max',
+    label: 'MAX',
+    urlKey: 'maxUrl',
+    showKey: 'showMax',
+    hosts: ['max.ru', 'www.max.ru'],
+  },
+  {
+    icon: 'telegram',
+    label: 'Telegram',
+    urlKey: 'telegramUrl',
+    showKey: 'showTelegram',
+    hosts: ['t.me', 'www.t.me', 'telegram.me', 'www.telegram.me'],
+  },
+  {
+    icon: 'vk',
+    label: 'ВКонтакте',
+    urlKey: 'vkUrl',
+    showKey: 'showVk',
+    hosts: ['vk.ru', 'www.vk.ru', 'vk.com', 'www.vk.com', 'vk.me', 'www.vk.me'],
+  },
+] as const
+
+/** Сайт задаёт только публичные HTTPS-ссылки выбранного мессенджера. */
+function parseMessengerOptions(
+  value: Partial<WidgetSiteOptions>,
+): WidgetSiteOptions {
+  const result: WidgetSiteOptions = {}
+
+  for (const messenger of messengers) {
+    const visible = value[messenger.showKey]
+    const address = value[messenger.urlKey]
+
+    if (visible !== undefined) {
+      if (typeof visible !== 'boolean')
+        throw new Error(`${messenger.showKey} должен быть true или false`)
+
+      result[messenger.showKey] = visible
+    }
+
+    if (address !== undefined) {
+      let url: URL
+
+      try {
+        url = new URL(publicUrl(address))
+      } catch {
+        throw new Error(
+          `${messenger.urlKey}: укажите публичную HTTPS-ссылку на ${messenger.label}`,
+        )
+      }
+
+      if (
+        url.protocol !== 'https:' ||
+        url.port ||
+        url.href.length > 2048 ||
+        !messenger.hosts.some((host) => host === url.hostname)
+      )
+        throw new Error(
+          `${messenger.urlKey}: укажите публичную HTTPS-ссылку на ${messenger.label}`,
+        )
+
+      result[messenger.urlKey] = url.href
+    }
+  }
+
+  return result
 }
 
 /** Параметры сайта не меняют серверные права, историю или правила контактов. */
@@ -29,6 +104,7 @@ export function parseWidgetSiteOptions(input: unknown): WidgetSiteOptions {
     throw new Error('Некорректные настройки виджета')
 
   const value = input as Partial<WidgetSiteOptions>
+  const accentColor = parseAccentColor(value.accentColor)
 
   if (
     value.initialMessage !== undefined &&
@@ -51,7 +127,52 @@ export function parseWidgetSiteOptions(input: unknown): WidgetSiteOptions {
   return {
     initialMessage: value.initialMessage?.trim() || undefined,
     autoOpenDelayMs: value.autoOpenDelayMs,
+    ...(accentColor === undefined ? {} : { accentColor }),
+    ...parseMessengerOptions(value),
   }
+}
+
+/** Ссылки сайта заменяют пункты своего канала, не меняя серверную конфигурацию. */
+function isMessengerLink(
+  link: WidgetConfig['socialLinks'][number],
+  messenger: (typeof messengers)[number],
+): boolean {
+  if (link.icon === messenger.icon) return true
+  if (messenger.icon !== 'max' || link.icon !== 'chat') return false
+
+  // Ранее MAX можно было подключить только с общей иконкой chat.
+  const url = new URL(link.url)
+
+  return (
+    url.protocol === 'https:' &&
+    messenger.hosts.some((host) => host === url.hostname)
+  )
+}
+
+export function applySiteSocialLinks(
+  config: WidgetConfig,
+  options: WidgetSiteOptions,
+): WidgetConfig {
+  let links = config.socialLinks
+
+  for (const messenger of messengers) {
+    const address = options[messenger.urlKey]
+    const visible = options[messenger.showKey]
+
+    if (address === undefined && visible === undefined) continue
+
+    const previous = links.find((link) => isMessengerLink(link, messenger))
+    const url = address ?? previous?.url
+
+    links = links.filter((link) => !isMessengerLink(link, messenger))
+
+    if (visible !== false && url)
+      links.push({ icon: messenger.icon, label: messenger.label, url })
+  }
+
+  return links === config.socialLinks
+    ? config
+    : { ...config, socialLinks: links }
 }
 
 /** Новый загрузчик передаёт срок от mount; старый начинает отсчёт при init. */
@@ -160,7 +281,7 @@ export interface WidgetConfig {
   socialLinks: {
     label: string
     url: string
-    icon: 'vk' | 'telegram' | 'chat'
+    icon: 'vk' | 'telegram' | 'max' | 'chat'
   }[]
   schedule: { timezone: string; start: string; end: string; days: number[] }
   contactPolicy: 'all' | 'name-and-one'
@@ -273,7 +394,7 @@ export function parseConfig(value: unknown): WidgetConfig {
       (v) =>
         typeof v.label === 'string' &&
         v.label.length <= 80 &&
-        ['vk', 'telegram', 'chat'].includes(v.icon),
+        ['vk', 'telegram', 'max', 'chat'].includes(v.icon),
     ) ||
     !['all', 'name-and-one'].includes(c.contactPolicy) ||
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(c.schedule?.start) ||
