@@ -28,6 +28,7 @@ import {
   ScrollWrapper,
 } from '@pksep/yui'
 import companyMark from './assets/company-mark.svg'
+import maxIcon from './assets/max-icon.svg'
 import {
   type EmbedOptions,
   type FrameMode,
@@ -285,6 +286,22 @@ function leaveMenu(): void {
     menu.value = false
   }, 180)
 }
+
+function activateLauncher(event: MouseEvent): void {
+  // На сенсорном экране нет наведения: сначала даём выбрать канал связи.
+  if (
+    event instanceof PointerEvent &&
+    event.pointerType === 'touch' &&
+    config.value?.socialLinks.length
+  ) {
+    showMenu()
+
+    return
+  }
+
+  void showChat()
+}
+
 async function showChat(): Promise<void> {
   await revealChat(true)
 }
@@ -784,7 +801,7 @@ watch([() => messages.value.length, step, open], async () => {
             class="launcher"
             aria-label="Открыть чат"
             :aria-expanded="menu"
-            @click.stop="showChat"
+            @click.stop="activateLauncher"
             @focus="showMenuFromFocus"
           >
             <Icon :name="IconNameEnum.chat" :width="24" :height="24" />
@@ -807,9 +824,20 @@ watch([() => messages.value.length, step, open], async () => {
             :href="link.url"
             target="_blank"
             rel="noopener noreferrer"
-            ><Icon :name="icon[link.icon]" :width="24" :height="24" /><span>{{
-              link.label
-            }}</span></a
+            ><img
+              v-if="link.icon === 'max'"
+              :src="maxIcon"
+              width="24"
+              height="24"
+              alt=""
+              aria-hidden="true"
+              class="messenger-max-icon"
+            /><Icon
+              v-else
+              :name="icon[link.icon]"
+              :width="24"
+              :height="24"
+            /><span>{{ link.label }}</span></a
           >
         </nav>
       </Popover>

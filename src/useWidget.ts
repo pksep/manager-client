@@ -11,6 +11,7 @@ import {
 import { WidgetApi, ServiceError } from './api'
 import {
   contactErrors,
+  applySiteSocialLinks,
   operatorOnline,
   parseMessage,
   parseOperatorTyping,
@@ -269,7 +270,9 @@ export function useWidget(
         lastTypingId = undefined
       }
 
-      config.value = session.config
+      config.value = options.supportSessionToken
+        ? session.config
+        : applySiteSocialLinks(session.config, options)
       serverOffset = Date.parse(session.serverTime) - Date.now()
       serverNow.value = new Date(Date.now() + serverOffset)
       const connectedAt = Date.parse(session.serverTime)
