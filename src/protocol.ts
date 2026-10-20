@@ -13,6 +13,8 @@ export interface EmbedOptions extends WidgetSiteOptions {
 
 export const MAX_AUTO_OPEN_DELAY_MS = 60 * 60 * 1000
 
+export const MAX_CUSTOM_CSS_LENGTH = 16000
+
 export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
   'initialOpenDeadline',
 )
@@ -20,6 +22,7 @@ export const initialOpenDeadlineKey: InjectionKey<number | undefined> = Symbol(
 export interface WidgetSiteOptions {
   initialMessage?: string
   autoOpenDelayMs?: number
+  customCss?: string
   accentColor?: string
   maxUrl?: string
   telegramUrl?: string
@@ -124,9 +127,20 @@ export function parseWidgetSiteOptions(input: unknown): WidgetSiteOptions {
       'Задержка открытия должна быть целым числом от 0 до 3600000 миллисекунд',
     )
 
+  if (
+    value.customCss !== undefined &&
+    (typeof value.customCss !== 'string' ||
+      value.customCss.length > MAX_CUSTOM_CSS_LENGTH)
+  )
+    throw new Error('CSS должен быть текстом до 16000 символов')
+
+  if (value.showVk !== undefined && typeof value.showVk !== 'boolean')
+    throw new Error('showVk должен быть true или false')
+
   return {
     initialMessage: value.initialMessage?.trim() || undefined,
     autoOpenDelayMs: value.autoOpenDelayMs,
+    ...(value.customCss === undefined ? {} : { customCss: value.customCss }),
     ...(accentColor === undefined ? {} : { accentColor }),
     ...parseMessengerOptions(value),
   }
@@ -418,36 +432,42 @@ export function parseConfig(value: unknown): WidgetConfig {
 
 export function contactErrors(
   c: Contacts,
-  policy: WidgetConfig['contactPolicy'],
-) {
+  _policy: WidgetConfig['contactPolicy'],
+): string[] {
   const errors: string[] = []
-  const phone = c.phone.replace(/\D/g, '')
+  const phoneText = c.phone.trim()
+  const emailText = c.email.trim()
+  const phone = phoneText.replace(/\D/g, '')
   const validPhone =
-    /^[+\d\s().-]+$/.test(c.phone) && phone.length >= 10 && phone.length <= 15
+    /^[+\d\s().-]+$/.test(phoneText) && phone.length >= 10 && phone.length <= 15
   const validEmail =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) && c.email.length <= 254
-  if (!c.name.trim()) errors.push('Введите имя.')
-  else if (c.name.trim().length < 2 || c.name.trim().length > 100)
-    errors.push('Имя должно содержать от 2 до 100 символов.')
-  if (policy === 'all' || c.phone) {
-    if (!c.phone) errors.push('Введите номер телефона.')
-    else if (!validPhone)
-      errors.push('Проверьте номер телефона: нужно от 10 до 15 цифр.')
-  }
-  if (policy === 'all' || c.email) {
-    if (!c.email) errors.push('Введите email.')
-    else if (!validEmail)
-      errors.push('Проверьте email, например name@example.com.')
-  }
-  if (policy === 'name-and-one' && !c.phone && !c.email)
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailText) && emailText.length <= 254
+  if (c.name.trim().length > 100)
+    errors.push('Имя должно содержать не более 100 символов.')
+
+  if (phoneText && !validPhone)
+    errors.push('Проверьте номер телефона: нужно от 10 до 15 цифр.')
+
+  if (emailText && !validEmail)
+    errors.push('Проверьте email, например name@example.com.')
+
+  if (!phoneText && !emailText)
     errors.push('Укажите телефон или email для ответа.')
+
   return errors
+}
+
+/** Форма объединена, но контракт сервера сохраняет раздельные реквизиты. */
+export function splitContact(value: string): Pick<Contacts, 'phone' | 'email'> {
+  return value.includes('@')
+    ? { phone: '', email: value }
+    : { phone: value, email: '' }
 }
 
 export function contactsValid(
   c: Contacts,
   policy: WidgetConfig['contactPolicy'],
-) {
+): boolean {
   return contactErrors(c, policy).length === 0
 }
 

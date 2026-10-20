@@ -32,13 +32,13 @@ async function conversation(
     .fill('Проверка автоматического открытия')
   await widget.locator('.composer .tiptap').press('Enter')
   await widget
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Тестовый посетитель')
   await widget
-    .getByRole('textbox', { name: 'Телефон', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('+7 999 123-45-67')
   await widget
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('widget@example.test')
   await widget
     .getByRole('button', { name: 'Отправить сообщение', exact: true })

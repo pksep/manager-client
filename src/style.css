@@ -299,6 +299,9 @@ a svg {
   gap: 15px;
   margin-top: 35px;
 }
+.contact-field-required {
+  color: #000;
+}
 .contact-field {
   display: grid;
   gap: 6px;

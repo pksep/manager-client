@@ -51,13 +51,11 @@ async function conversation(
   await frame.locator('.composer .tiptap').fill('Проверка фона')
   await frame.locator('.composer .tiptap').press('Enter')
   await frame
-    .getByRole('textbox', { name: 'Имя', exact: true })
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
     .fill('Тест фона')
+
   await frame
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 123-45-67')
-  await frame
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('background@example.test')
   await frame
     .getByRole('button', { name: 'Отправить сообщение', exact: true })

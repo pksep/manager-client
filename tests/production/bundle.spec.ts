@@ -59,12 +59,12 @@ test('production loader and iframe complete an inquiry across two origins', asyn
     .toBe(initial.x - 40)
   await frame.locator('.composer .tiptap').fill('Проверка сборки')
   await frame.locator('.composer .toolbar .right').click()
-  await frame.getByRole('textbox', { name: 'Имя', exact: true }).fill('Иван')
   await frame
-    .getByRole('textbox', { name: 'Телефон', exact: true })
-    .fill('+7 999 1234567')
+    .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
+    .fill('Иван')
+
   await frame
-    .getByRole('textbox', { name: 'E-mail', exact: true })
+    .getByRole('textbox', { name: 'Телефон или email', exact: true })
     .fill('ivan@example.com')
   await frame
     .getByRole('button', { name: 'Отправить сообщение', exact: true })

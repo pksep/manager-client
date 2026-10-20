@@ -13,6 +13,7 @@ const defaults: EmbedOptions = {
   widgetUrl: new URL('/widget.html', location.href).href,
   offset: 24,
   initialMessage: '',
+  customCss: '',
 }
 
 document.querySelector('#demo')!.innerHTML = `
@@ -33,10 +34,11 @@ document.querySelector('#demo')!.innerHTML = `
       <div class="demo-actions">
         <button id="apply-config" class="demo-primary" type="button">Применить конфиг</button>
         <button id="greeting-example" type="button">Пример с приветствием</button>
+        <button id="style-example" type="button">Пример CSS и ВК</button>
         <button id="reset-config" type="button">Вернуть исходный</button>
         <button id="download-config" type="button">Скачать JSON</button>
       </div>
-      <p class="demo-hint"><code>initialMessage: ""</code> — стандартные приветствия. <code>autoOpenDelayMs: 3000</code> — открытие через 3 секунды. Отсчёт начинается заново при применении конфига.</p>
+      <p class="demo-hint"><code>initialMessage: ""</code>: стандартные приветствия. <code>autoOpenDelayMs: 3000</code>: открытие через 3 секунды. <code>customCss</code>: CSS внутри виджета. <code>showVk</code> и <code>vkUrl</code>: пункт ВК и ссылка на чат. Отсчёт начинается заново при применении конфига.</p>
       <p class="demo-hint">Ссылки на мессенджеры задаются здесь: <code>maxUrl</code>, <code>telegramUrl</code>, <code>vkUrl</code>. Укажите публичный HTTPS-адрес своего бота или сообщества. Чтобы скрыть пункт, добавьте <code>showMax: false</code>, <code>showTelegram: false</code> или <code>showVk: false</code>.</p>
       <p class="demo-hint"><code>accentColor: "#c2410c"</code> задаёт оранжевый цвет кнопок и акцентов виджета. Без параметра сохраняется стандартное оформление.</p>
       <p id="config-status" role="status" aria-live="polite"></p>
@@ -264,6 +266,27 @@ document.querySelector('#reset-config')!.addEventListener('click', (): void => {
   editor.value = integrationJson(defaults)
   applyConfig()
 })
+
+document
+  .querySelector('#style-example')!
+  .addEventListener('click', (): void => {
+    try {
+      editor.value = integrationJson({
+        ...parseIntegrationConfig(editor.value),
+        showVk: true,
+        vkUrl: 'https://vk.ru/im/convo/-203143723?entrypoint=list_all',
+        customCss:
+          '.manager-widget { --chat-window-radius: 16px; }\n.launcher { background: #164f43; }\n.chat-header { background: #e8f4ef; }',
+      })
+      status(configStatus, 'Пример вставлен. Нажмите «Применить конфиг».')
+    } catch (error) {
+      status(
+        configStatus,
+        error instanceof Error ? error.message : 'Ошибка JSON',
+        true,
+      )
+    }
+  })
 
 document
   .querySelector('#download-config')!

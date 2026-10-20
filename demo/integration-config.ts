@@ -11,6 +11,7 @@ const publicKeys = new Set([
   'offset',
   'initialMessage',
   'autoOpenDelayMs',
+  'customCss',
   'accentColor',
   'maxUrl',
   'telegramUrl',

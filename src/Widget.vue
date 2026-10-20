@@ -23,7 +23,6 @@ import {
   Input,
   Popover,
   SizesEnum,
-  TextFieldEnum,
   Tooltip,
   ScrollWrapper,
 } from '@pksep/yui'
@@ -67,6 +66,7 @@ const {
   messages,
   step,
   contacts,
+  contactValue,
   draft,
   files,
   error,
@@ -543,37 +543,32 @@ watch([() => messages.value.length, step, open], async () => {
             @keydown.enter.prevent="send"
           >
             <div class="contact-field">
-              <label for="contact-name">Имя</label>
+              <label for="contact-name">Как к вам обращаться</label>
               <Input
                 v-model="contacts.name"
                 input-id="contact-name"
-                aria-label="Имя"
+                aria-label="Как к вам обращаться"
                 placeholder="Введите имя"
                 autocomplete="name"
+                :maxlength="100"
                 hide-clear-button
               />
             </div>
             <div class="contact-field">
-              <label for="contact-phone">Телефон</label>
+              <label for="contact-value"
+                >Телефон или email
+                <span class="contact-field-required" aria-hidden="true"
+                  >*</span
+                ></label
+              >
               <Input
-                v-model="contacts.phone"
-                input-id="contact-phone"
-                aria-label="Телефон"
-                placeholder="Введите номер"
-                :type="TextFieldEnum.tel"
-                autocomplete="tel"
-                hide-clear-button
-              />
-            </div>
-            <div class="contact-field">
-              <label for="contact-email">Email</label>
-              <Input
-                v-model="contacts.email"
-                input-id="contact-email"
-                aria-label="E-mail"
-                placeholder="Введите email"
-                :type="TextFieldEnum.email"
-                autocomplete="email"
+                v-model="contactValue"
+                input-id="contact-value"
+                aria-label="Телефон или email"
+                aria-required="true"
+                placeholder="Введите телефон или email"
+                autocomplete="off"
+                :maxlength="254"
                 hide-clear-button
               />
             </div>

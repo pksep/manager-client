@@ -7,6 +7,7 @@ import {
   parseOperatorTyping,
   publicUrl,
   parseSupportDraft,
+  splitContact,
 } from '../../src/protocol'
 
 describe('Сигнал набора оператором', () => {
@@ -75,11 +76,15 @@ describe('Правила контактов', () => {
     phone: '+7 (999) 123-45-67',
     email: 'ivan@example.com',
   }
-  test('первоначально все три поля обязательны', () => {
+  test('имя необязательно, достаточно телефона или email при любом старом значении политики', (): void => {
     expect(contactsValid(valid, 'all')).toBe(true)
-    expect(contactsValid({ ...valid, email: '' }, 'all')).toBe(false)
+    expect(contactsValid({ ...valid, email: '' }, 'all')).toBe(true)
     expect(contactsValid({ ...valid, phone: '123' }, 'all')).toBe(false)
-    expect(contactsValid({ ...valid, name: ' ' }, 'all')).toBe(false)
+    expect(contactsValid({ ...valid, name: ' ', phone: '' }, 'all')).toBe(true)
+    expect(
+      contactsValid({ ...valid, name: '', email: '' }, 'name-and-one'),
+    ).toBe(true)
+    expect(contactsValid({ ...valid, name: 'Ю' }, 'all')).toBe(true)
   })
   test('настраиваемый один канал не допускает заполненное неверное поле', () => {
     expect(contactsValid({ ...valid, phone: '' }, 'name-and-one')).toBe(true)
@@ -89,9 +94,7 @@ describe('Правила контактов', () => {
   })
   test('причины блокировки совпадают с правилами отправки', () => {
     expect(contactErrors({ name: '', phone: '', email: '' }, 'all')).toEqual([
-      'Введите имя.',
-      'Введите номер телефона.',
-      'Введите email.',
+      'Укажите телефон или email для ответа.',
     ])
     expect(contactErrors({ ...valid, email: 'wrong' }, 'all')).toEqual([
       'Проверьте email, например name@example.com.',
@@ -100,6 +103,29 @@ describe('Правила контактов', () => {
       contactErrors({ ...valid, phone: '', email: '' }, 'name-and-one'),
     ).toEqual(['Укажите телефон или email для ответа.'])
     expect(contactErrors({ ...valid, phone: '' }, 'name-and-one')).toEqual([])
+  })
+  test('единое поле отделяет email от телефона и очищает прежний способ связи', (): void => {
+    expect(splitContact('ivan@example.test')).toEqual({
+      phone: '',
+      email: 'ivan@example.test',
+    })
+    expect(splitContact('+7 (999) 123-45-67')).toEqual({
+      phone: '+7 (999) 123-45-67',
+      email: '',
+    })
+    expect(splitContact('')).toEqual({ phone: '', email: '' })
+    expect(
+      contactsValid(
+        { name: '', ...splitContact('  ivan@example.test  ') },
+        'all',
+      ),
+    ).toBe(true)
+    expect(
+      contactsValid(
+        { name: 'a'.repeat(101), ...splitContact('ivan@example.test') },
+        'all',
+      ),
+    ).toBe(false)
   })
 })
 describe('Расписание в часовом поясе компании', () => {

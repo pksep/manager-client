@@ -16,6 +16,7 @@ import {
   parseMessage,
   parseOperatorTyping,
   parseSupportDraft,
+  splitContact,
   type EmbedOptions,
   type WidgetConfig,
   type Message,
@@ -40,6 +41,7 @@ interface WidgetState {
   messages: Ref<Message[]>
   step: Ref<'conversation' | 'contacts'>
   contacts: Contacts
+  contactValue: Ref<string>
   draft: Ref<string>
   files: Ref<File[]>
   error: Ref<string>
@@ -76,6 +78,12 @@ export function useWidget(
   const messages = ref<Message[]>([]),
     step = ref<'conversation' | 'contacts'>('conversation')
   const contacts = reactive<Contacts>({ name: '', phone: '', email: '' })
+  const contactValue = computed<string>({
+    get: (): string => contacts.email || contacts.phone,
+    set: (value: string): void => {
+      Object.assign(contacts, splitContact(value))
+    },
+  })
   const draft = ref(saved?.draft || ''),
     files = ref<File[]>(saved?.files || []),
     error = ref(''),
@@ -575,6 +583,7 @@ export function useWidget(
     messages,
     step,
     contacts,
+    contactValue,
     draft,
     files,
     error,
