@@ -7,7 +7,7 @@ const links = {
 }
 
 async function mount(page: Page, options: object): Promise<void> {
-  await page.route('**/demo/host.ts', (route) =>
+  await page.route(/\/demo\/host\.ts(?:\?.*)?$/, (route) =>
     route.fulfill({
       contentType: 'application/javascript',
       body: `import { mount } from '/src/embed.ts';
@@ -96,7 +96,7 @@ test('флаги скрывают пункты даже при серверно�
   await widget.getByRole('button', { name: 'Открыть чат' }).hover()
   await expect(widget.locator('.contact-menu a')).toHaveCount(0)
   await widget
-    .getByRole('button', { name: 'Отправить сообщение', exact: true })
+    .getByRole('button', { name: 'Написать сообщение', exact: true })
     .click()
   await expect(widget.getByRole('dialog')).toBeVisible()
 })
@@ -172,7 +172,7 @@ test.describe('сенсорный экран', (): void => {
     await popup.close()
     await widget.getByRole('button', { name: 'Открыть чат' }).tap()
     await widget
-      .getByRole('button', { name: 'Отправить сообщение', exact: true })
+      .getByRole('button', { name: 'Написать сообщение', exact: true })
       .tap()
     await expect(widget.getByRole('dialog')).toBeVisible()
   })

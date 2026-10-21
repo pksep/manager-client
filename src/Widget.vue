@@ -810,7 +810,7 @@ watch([() => messages.value.length, step, open], async () => {
         >
           <button type="button" @click="showChat">
             <Icon :name="IconNameEnum.chat" :width="24" :height="24" /><span
-              >Отправить сообщение</span
+              >Написать сообщение</span
             >
           </button>
           <a

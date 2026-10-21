@@ -34,7 +34,7 @@ document.querySelector('#demo')!.innerHTML = `
       <div class="demo-actions">
         <button id="apply-config" class="demo-primary" type="button">Применить конфиг</button>
         <button id="greeting-example" type="button">Пример с приветствием</button>
-        <button id="style-example" type="button">Пример CSS и ВК</button>
+        <button id="style-example" type="button">Пример CSS и мессенджеров</button>
         <button id="reset-config" type="button">Вернуть исходный</button>
         <button id="download-config" type="button">Скачать JSON</button>
       </div>
@@ -208,7 +208,7 @@ async function control(body?: object): Promise<void> {
   }
 }
 
-function applyConfig(): void {
+function applyConfig(): boolean {
   try {
     // Сначала проверяем весь конфиг: ошибка не уничтожает текущий виджет.
     const options = parseIntegrationConfig(editor.value)
@@ -222,6 +222,8 @@ function applyConfig(): void {
     status(configStatus, 'Конфиг применён. Виджет перезапущен.')
     syncControls()
     void control()
+
+    return true
   } catch (error) {
     editor.setAttribute('aria-invalid', 'true')
     status(
@@ -229,6 +231,8 @@ function applyConfig(): void {
       error instanceof Error ? error.message : 'Не удалось применить конфиг',
       true,
     )
+
+    return false
   }
 }
 
@@ -252,7 +256,7 @@ document
         initialMessage: 'Здравствуйте! Подскажите, чем мы можем помочь?',
         autoOpenDelayMs: 3000,
       })
-      status(configStatus, 'Пример вставлен. Нажмите «Применить конфиг».')
+      applyConfig()
     } catch (error) {
       status(
         configStatus,
@@ -273,12 +277,23 @@ document
     try {
       editor.value = integrationJson({
         ...parseIntegrationConfig(editor.value),
+        autoOpenDelayMs: undefined,
+        accentColor: '#c2410c',
+        showMax: true,
+        maxUrl: 'https://max.ru/se14708495_bot',
+        showTelegram: true,
+        telegramUrl: 'https://t.me/npo_automotivebot',
         showVk: true,
         vkUrl: 'https://vk.ru/im/convo/-203143723?entrypoint=list_all',
         customCss:
-          '.manager-widget { --chat-window-radius: 16px; }\n.launcher { background: #164f43; }\n.chat-header { background: #e8f4ef; }',
+          '.manager-widget { --chat-window-radius: 16px; }\n.chat-header { background: #fff3e0; }',
       })
-      status(configStatus, 'Пример вставлен. Нажмите «Применить конфиг».')
+
+      if (applyConfig())
+        status(
+          configStatus,
+          'Пример применён: MAX, Telegram и ВКонтакте. Наведите указатель на кнопку виджета; на телефоне нажмите её, чтобы увидеть способы связи.',
+        )
     } catch (error) {
       status(
         configStatus,

@@ -15,6 +15,10 @@ test('редактор применяет приветствие, перезап
   await page.goto('/')
   await expect(page.locator('#control-status')).toHaveText('Демо подключено')
   await page.getByRole('button', { name: 'Пример с приветствием' }).click()
+  await expect(page.locator('#config-status')).toContainText('Конфиг применён')
+  await expect(page.locator('#integration-code')).toContainText(
+    'Здравствуйте! Подскажите, чем мы можем помочь?',
+  )
   const editor = page.getByRole('textbox', { name: 'Редактируемый конфиг' })
   const options = JSON.parse(await editor.inputValue())
   options.autoOpenDelayMs = 0

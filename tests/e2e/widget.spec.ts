@@ -307,7 +307,7 @@ test('меню использует заданные социальные ссы
     frame(page).getByRole('link', { name: 'Написать ВКонтакте' }),
   ).toHaveAttribute('href', 'https://vk.com/test-company')
   await expect(
-    frame(page).getByRole('button', { name: 'Отправить сообщение' }),
+    frame(page).getByRole('button', { name: 'Написать сообщение' }),
   ).toBeVisible()
   const f = frame(page)
   expect(
@@ -862,7 +862,7 @@ test('сенсорный экран 320 px: открытие и отправка
     frame(page).getByRole('navigation', { name: 'Способы связи' }),
   ).toBeVisible()
   await frame(page)
-    .getByRole('button', { name: 'Отправить сообщение', exact: true })
+    .getByRole('button', { name: 'Написать сообщение', exact: true })
     .tap()
   await frame(page).locator('.composer .tiptap').fill('Нужна консультация')
   await frame(page).locator('.composer .toolbar .right').tap()
