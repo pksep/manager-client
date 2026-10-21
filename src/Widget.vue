@@ -28,6 +28,7 @@ import {
 } from '@pksep/yui'
 import companyMark from './assets/company-mark.svg'
 import maxIcon from './assets/max-icon.svg'
+import sepChatLogo from './assets/sep-chat-logo.svg'
 import {
   type EmbedOptions,
   type FrameMode,
@@ -388,9 +389,11 @@ onMounted((): void => {
   document.addEventListener('visibilitychange', scheduleAutomaticOpen)
 })
 
-async function closeChat(): Promise<void> {
+async function closeChat(event?: MouseEvent | KeyboardEvent): Promise<void> {
   if (!open.value || panelTransition.value === 'closing') return
 
+  const restoreKeyboardFocus =
+    event instanceof KeyboardEvent || event?.detail === 0
   const action = ++panelAction
   if (openingFrame !== undefined) cancelAnimationFrame(openingFrame)
   openingFrame = undefined
@@ -414,6 +417,8 @@ async function closeChat(): Promise<void> {
   open.value = false
   menu.value = false
   panelTransition.value = 'idle'
+  if (!restoreKeyboardFocus) return
+
   ignoreNextLauncherFocus = true
   await nextTick()
   launcher.value?.focus({ preventScroll: true })
@@ -425,7 +430,7 @@ function keyboard(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
     if (props.embedded) emit('close')
-    else void closeChat()
+    else void closeChat(event)
   }
 }
 watch(
@@ -525,6 +530,18 @@ watch([() => messages.value.length, step, open], async () => {
           <Icon :name="IconNameEnum.crossSmall" :width="16" :height="16" />
         </button>
       </header>
+
+      <div v-if="!embedded" class="widget-branding">
+        <span>Messenger для бизнеса</span>
+        <a
+          href="https://pksep.ru/chat/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img :src="sepChatLogo" width="20" height="20" alt="" />
+          <span>SEP:Chat</span>
+        </a>
+      </div>
 
       <ScrollWrapper
         v-if="step === 'contacts'"

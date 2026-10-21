@@ -22,7 +22,7 @@ if (
   throw new Error('Некорректный порт изолированной страницы теста')
 
 const config: WidgetConfig = {
-  company: { name: 'НПО Амотив' },
+  company: { name: 'НПО Автомотив' },
   welcomeMessages: [
     'Здравствуйте!',
     'Мне нужна помощь',

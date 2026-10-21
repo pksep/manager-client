@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 async function mount(page: Page, options: object): Promise<void> {
-  await page.route('**/demo/host.ts', (route) =>
+  await page.route(/\/demo\/host\.ts(?:\?.*)?$/, (route) =>
     route.fulfill({
       contentType: 'application/javascript',
       body: `import { mount } from '/src/embed.ts';
@@ -48,13 +48,12 @@ for (const width of [1440, 390]) {
 
     await expect(send).toBeDisabled()
     await expect(send).not.toHaveCSS('background-color', 'rgb(194, 65, 12)')
-    await widget.getByRole('textbox', { name: 'Имя', exact: true }).fill('Тест')
     await widget
-      .getByRole('textbox', { name: 'Телефон', exact: true })
+      .getByRole('textbox', { name: 'Как к вам обращаться', exact: true })
+      .fill('Тест')
+    await widget
+      .getByRole('textbox', { name: 'Телефон или email', exact: true })
       .fill('+7 999 123-45-67')
-    await widget
-      .getByRole('textbox', { name: 'E-mail', exact: true })
-      .fill('test@example.com')
     await expect(send).toBeEnabled()
     await expect(send).toHaveCSS('background-color', 'rgb(194, 65, 12)')
     await expect(send).toHaveCSS('color', 'rgb(255, 255, 255)')

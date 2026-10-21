@@ -81,11 +81,38 @@ a svg {
   opacity: 1;
 }
 .chat-window--collapsed {
-  position: absolute;
-  width: 418px;
-  height: 640px;
-  visibility: hidden;
-  pointer-events: none;
+  /* Сохраняем редактор, но не рисуем закрытую панель и её аватары. */
+  display: none;
+}
+.widget-branding {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 16px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+.widget-branding a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 4px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.widget-branding a:hover {
+  color: var(--widget-accent-text, var(--action-primary-bg));
+  text-decoration: underline;
+}
+.widget-branding img {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .chat-header {
   height: 76px;
@@ -626,7 +653,7 @@ a svg {
 }
 .launcher:focus-visible {
   outline-offset: -4px;
-  outline-color: var(--text-white);
+  outline-color: var(--widget-on-accent, var(--text-white));
 }
 @keyframes launcher-show {
   from {
