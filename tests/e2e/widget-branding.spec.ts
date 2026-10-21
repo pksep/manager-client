@@ -16,13 +16,20 @@ for (const width of [1440, 320]) {
     await page.getByRole('button', { name: 'Пример с приветствием' }).click()
     const widget = page.frameLocator('iframe[data-sep-manager]')
     const branding = widget.locator('.widget-branding')
-    const link = widget.getByRole('link', { name: 'SEP:Chat', exact: true })
+    const link = widget.getByRole('link', {
+      name: /^Мессенджер для бизнеса\s+SEP:Chat$/,
+    })
 
     await expect(widget.getByRole('dialog')).toBeVisible()
     await expect(branding).toContainText('Мессенджер для бизнеса')
     await expect(link).toHaveAttribute('href', 'https://pksep.ru/chat/')
     await expect(link).toHaveAttribute('target', '_blank')
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    await expect(link).toHaveCSS('font-size', '12px')
+    await expect(link.locator('.widget-branding-product span')).toHaveCSS(
+      'font-size',
+      '12px',
+    )
     await expect(widget.locator('.site-greeting .message-author')).toHaveText(
       'НПО Автомотив',
     )
@@ -38,10 +45,11 @@ for (const width of [1440, 320]) {
         const header = element.previousElementSibling!
         const panel = element.parentElement!
         const bounds = element.getBoundingClientRect()
-        const linkBounds = element.querySelector('a')!.getBoundingClientRect()
+        const linkBounds = bounds
+        const panelBounds = panel.getBoundingClientRect()
         const logoBounds = element.querySelector('img')!.getBoundingClientRect()
         const labelBounds = element
-          .querySelector('a span')!
+          .querySelector('.widget-branding-product span')!
           .getBoundingClientRect()
         const descriptionBounds = element
           .querySelector(':scope > span')!
@@ -49,9 +57,10 @@ for (const width of [1440, 320]) {
 
         return {
           belowHeader: bounds.top >= header.getBoundingClientRect().bottom,
-          rightInset: Math.round(
-            panel.getBoundingClientRect().right - linkBounds.right,
-          ),
+          rightInset: Math.round(panelBounds.right - labelBounds.right),
+          fullWidth:
+            Math.abs(linkBounds.left - panelBounds.left) < 0.1 &&
+            Math.abs(linkBounds.right - panelBounds.right) < 0.1,
           overflow: element.scrollWidth > element.clientWidth,
           logoWidth: logoBounds.width,
           logoHeight: logoBounds.height,
@@ -77,6 +86,7 @@ for (const width of [1440, 320]) {
     ).toEqual({
       belowHeader: true,
       rightInset: 16,
+      fullWidth: true,
       overflow: false,
       logoWidth: 20,
       logoHeight: 16,
@@ -135,13 +145,29 @@ for (const width of [1440, 320]) {
         body: '<title>SEP:Chat</title>',
       }),
     )
-    const popupReady = page.waitForEvent('popup')
+    const activateLink = async (
+      activate: () => Promise<void>,
+    ): Promise<void> => {
+      const popupReady = page.waitForEvent('popup')
 
-    await link.click()
-    const popup = await popupReady
+      await activate()
+      const popup = await popupReady
 
-    await expect(popup).toHaveURL('https://pksep.ru/chat/')
-    await popup.close()
-    await expect(widget.getByRole('dialog')).toBeVisible()
+      await expect(popup).toHaveURL('https://pksep.ru/chat/')
+      await popup.close()
+      await expect(widget.getByRole('dialog')).toBeVisible()
+    }
+
+    for (const target of [
+      link.getByText('Мессенджер для бизнеса', { exact: true }),
+      link.locator('img'),
+      link.getByText('SEP:Chat', { exact: true }),
+    ]) {
+      await activateLink(() => target.click())
+    }
+
+    // Свободная область слева тоже входит в ссылку, не только её текст и знак.
+    await activateLink(() => link.click({ position: { x: 4, y: 16 } }))
+    await activateLink(() => link.press('Enter'))
   })
 }

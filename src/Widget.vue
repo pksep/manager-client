@@ -531,17 +531,19 @@ watch([() => messages.value.length, step, open], async () => {
         </button>
       </header>
 
-      <div v-if="!embedded" class="widget-branding">
+      <a
+        v-if="!embedded"
+        class="widget-branding"
+        href="https://pksep.ru/chat/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         <span>Мессенджер для бизнеса</span>
-        <a
-          href="https://pksep.ru/chat/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <span class="widget-branding-product">
           <img :src="sepChatLogo" width="20" height="16" alt="" />
           <span>SEP:Chat</span>
-        </a>
-      </div>
+        </span>
+      </a>
 
       <ScrollWrapper
         v-if="step === 'contacts'"

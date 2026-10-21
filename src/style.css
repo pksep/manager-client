@@ -93,6 +93,7 @@ a svg {
 }
 .widget-branding {
   flex-shrink: 0;
+  width: 100%;
   min-height: 32px;
   display: flex;
   align-items: center;
@@ -100,22 +101,23 @@ a svg {
   gap: 6px;
   padding: 6px 16px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
+  text-decoration: none;
 }
-.widget-branding a {
+.widget-branding-product {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  border-radius: 4px;
-  color: inherit;
   font-weight: 600;
-  text-decoration: none;
   white-space: nowrap;
 }
-.widget-branding a:hover {
+.widget-branding:hover {
   color: var(--widget-accent-text, var(--action-primary-bg));
   text-decoration: underline;
+}
+.widget-branding:focus-visible {
+  outline-offset: -2px;
 }
 .widget-branding img {
   display: block;
