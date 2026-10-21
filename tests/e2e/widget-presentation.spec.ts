@@ -23,20 +23,60 @@ test.beforeEach(async ({ request }): Promise<void> => {
   })
 })
 
-test('CSS меняет виджет, а пункт ВК открывает заданный чат без дублирования', async ({
+test('пример сразу применяет CSS и три мессенджера без дополнительной кнопки', async ({
   page,
 }): Promise<void> => {
   await page.goto('/')
   const hostColor = await page
     .locator('body')
     .evaluate((el) => getComputedStyle(el).backgroundColor)
-  await page.getByRole('button', { name: 'Пример CSS и ВК' }).click()
-  await page
-    .getByRole('button', { name: 'Применить конфиг', exact: true })
-    .click()
+  const editor = page.getByRole('textbox', { name: 'Редактируемый конфиг' })
+
+  await editor.fill(
+    JSON.stringify({
+      ...JSON.parse(await editor.inputValue()),
+      showMax: false,
+      showTelegram: false,
+      showVk: false,
+      autoOpenDelayMs: 0,
+    }),
+  )
+  await page.getByRole('button', { name: 'Пример CSS и мессенджеров' }).click()
+
   const launcher = frame(page).getByRole('button', { name: 'Открыть чат' })
-  await expect(launcher).toHaveCSS('background-color', 'rgb(22, 79, 67)')
+
+  await expect(page.locator('#config-status')).toContainText('Пример применён')
+  await expect(page.locator('iframe[data-sep-manager]')).toHaveCount(1)
+  expect(JSON.parse(await editor.inputValue()).autoOpenDelayMs).toBeUndefined()
+  await expect(launcher).toHaveCSS('background-color', 'rgb(194, 65, 12)')
   await launcher.hover()
+  await expect(frame(page).locator('.contact-menu a')).toHaveCount(3)
+
+  for (const [name, url] of [
+    ['MAX', 'https://max.ru/se14708495_bot'],
+    ['Telegram', 'https://t.me/npo_automotivebot'],
+    ['ВКонтакте', vkUrl],
+  ]) {
+    await expect(
+      frame(page).getByRole('link', { name, exact: true }),
+    ).toHaveAttribute('href', url)
+    await expect(page.locator('#integration-code')).toContainText(url)
+  }
+
+  await expect(
+    frame(page).getByRole('button', {
+      name: 'Написать сообщение',
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    frame(page).getByRole('button', {
+      name: 'Отправить сообщение',
+      exact: true,
+    }),
+  ).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/widget-example-messengers.png' })
+
   const link = frame(page).getByRole('link', { name: 'ВКонтакте' })
   await expect(link).toHaveCount(1)
   await expect(link).toHaveAttribute('href', vkUrl)
@@ -55,7 +95,7 @@ test('CSS меняет виджет, а пункт ВК открывает за�
   await launcher.click()
   await expect(frame(page).locator('.chat-header')).toHaveCSS(
     'background-color',
-    'rgb(232, 244, 239)',
+    'rgb(255, 243, 224)',
   )
   await expect(frame(page).locator('.chat-window')).toHaveCSS(
     'border-top-left-radius',
