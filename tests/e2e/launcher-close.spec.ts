@@ -69,16 +69,17 @@ for (const scenario of [
         await expect(launcher).toHaveCSS('outline-style', 'none')
         await expect(launcher).toHaveAttribute('aria-expanded', 'false')
         await expect(widget(page).locator('.chat-window')).toHaveCSS(
-          'display',
-          'none',
+          'opacity',
+          '0',
         )
-        await expect
-          .poll(() =>
-            widget(page)
-              .locator('.company-avatar')
-              .evaluate((element) => element.getBoundingClientRect().width),
-          )
-          .toBe(0)
+        await expect(widget(page).locator('.chat-window')).toHaveCSS(
+          'clip-path',
+          'inset(100%)',
+        )
+        await expect(widget(page).locator('.chat-window')).toHaveAttribute(
+          'inert',
+          '',
+        )
         await expect(page.locator('iframe[data-sep-manager]')).toHaveCSS(
           'width',
           '60px',
@@ -111,9 +112,10 @@ for (const key of ['Escape', 'Enter']) {
     await expect(launcher).toBeFocused()
     await expect(launcher).toHaveCSS('outline-style', 'solid')
     await expect(launcher).toHaveAttribute('aria-expanded', 'false')
+    await expect(widget(page).locator('.chat-window')).toHaveCSS('opacity', '0')
     await expect(widget(page).locator('.chat-window')).toHaveCSS(
-      'display',
-      'none',
+      'clip-path',
+      'inset(100%)',
     )
     await launcher.press('Enter')
     await expect(widget(page).getByRole('dialog')).toBeVisible()

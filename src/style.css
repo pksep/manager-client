@@ -80,9 +80,16 @@ a svg {
 .chat-window--host-motion.chat-window--closing {
   opacity: 1;
 }
-.chat-window--collapsed {
-  /* Сохраняем редактор, но не рисуем закрытую панель и её аватары. */
-  display: none;
+.chat-window.chat-window--collapsed {
+  /* Сохраняем геометрию для подготовки редактора, но скрываем всю отрисовку. */
+  position: absolute;
+  width: 418px;
+  height: 640px;
+  opacity: 0;
+  visibility: hidden;
+  clip-path: inset(100%);
+  pointer-events: none;
+  transition: none;
 }
 .widget-branding {
   flex-shrink: 0;
