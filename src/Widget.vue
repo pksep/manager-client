@@ -532,13 +532,13 @@ watch([() => messages.value.length, step, open], async () => {
       </header>
 
       <div v-if="!embedded" class="widget-branding">
-        <span>Messenger для бизнеса</span>
+        <span>Мессенджер для бизнеса</span>
         <a
           href="https://pksep.ru/chat/"
           target="_blank"
           rel="noopener noreferrer"
         >
-          <img :src="sepChatLogo" width="20" height="20" alt="" />
+          <img :src="sepChatLogo" width="20" height="16" alt="" />
           <span>SEP:Chat</span>
         </a>
       </div>

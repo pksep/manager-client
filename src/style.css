@@ -93,6 +93,7 @@ a svg {
 }
 .widget-branding {
   flex-shrink: 0;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -119,6 +120,8 @@ a svg {
 .widget-branding img {
   display: block;
   flex-shrink: 0;
+  width: 20px;
+  height: 16px;
   object-fit: contain;
 }
 .chat-header {
