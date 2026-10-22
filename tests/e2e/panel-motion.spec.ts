@@ -149,6 +149,27 @@ test('задержка рамки и поддельное подтвержден
         const frame = document.querySelector<HTMLIFrameElement>(
           'iframe[data-sep-manager]',
         )
+        const root = document.documentElement
+        let preparing = true
+        let sampledFrames = 0
+        let visibleFrames = 0
+        const samplePreparation = (): void => {
+          if (!preparing) return
+
+          const panel = frame?.contentDocument?.querySelector('.chat-window')
+
+          if (panel) {
+            sampledFrames++
+            if (frame?.contentWindow?.getComputedStyle(panel).opacity !== '0')
+              visibleFrames++
+          }
+
+          root.dataset.prepareSamples = String(sampledFrames)
+          root.dataset.prepareVisible = String(visibleFrames)
+          requestAnimationFrame(samplePreparation)
+        }
+
+        requestAnimationFrame(samplePreparation)
         frame?.contentWindow?.postMessage(
           {
             type: 'sep-manager:motion-complete',
@@ -160,17 +181,16 @@ test('задержка рамки и поддельное подтвержден
           },
           location.origin,
         )
-        setTimeout(
-          () =>
-            window.dispatchEvent(
-              new MessageEvent('message', {
-                data: { ...event.data, delayed: true },
-                origin: event.origin,
-                source: event.source,
-              }),
-            ),
-          600,
-        )
+        setTimeout(() => {
+          preparing = false
+          window.dispatchEvent(
+            new MessageEvent('message', {
+              data: { ...event.data, delayed: true },
+              origin: event.origin,
+              source: event.source,
+            }),
+          )
+        }, 600)
       },
       true,
     )
@@ -178,10 +198,14 @@ test('задержка рамки и поддельное подтвержден
   await auditFrames(page)
   await page.goto('/')
   await widget(page).getByRole('button', { name: 'Открыть чат' }).click()
-  await expect(widget(page).locator('.chat-window')).toHaveCSS('opacity', '0')
-  await page.waitForTimeout(250)
-  await expect(widget(page).locator('.chat-window')).toHaveCSS('opacity', '0')
   await settled(page)
+  expect(
+    Number(await page.locator('html').getAttribute('data-prepare-samples')),
+  ).toBeGreaterThan(3)
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-prepare-visible',
+    '0',
+  )
   await expect(page.locator('html')).toHaveAttribute('data-motion-partial', '0')
 })
 

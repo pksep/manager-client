@@ -80,12 +80,51 @@ a svg {
 .chat-window--host-motion.chat-window--closing {
   opacity: 1;
 }
-.chat-window--collapsed {
+.chat-window.chat-window--collapsed {
+  /* Сохраняем геометрию для подготовки редактора, но скрываем всю отрисовку. */
   position: absolute;
   width: 418px;
   height: 640px;
+  opacity: 0;
   visibility: hidden;
+  clip-path: inset(100%);
   pointer-events: none;
+  transition: none;
+}
+.widget-branding {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: none;
+}
+.widget-branding-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.widget-branding:hover {
+  color: var(--widget-accent-text, var(--action-primary-bg));
+  text-decoration: underline;
+}
+.widget-branding:focus-visible {
+  outline-offset: -2px;
+}
+.widget-branding img {
+  display: block;
+  flex-shrink: 0;
+  width: 20px;
+  height: 16px;
+  object-fit: contain;
 }
 .chat-header {
   height: 76px;
@@ -626,7 +665,7 @@ a svg {
 }
 .launcher:focus-visible {
   outline-offset: -4px;
-  outline-color: var(--text-white);
+  outline-color: var(--widget-on-accent, var(--text-white));
 }
 @keyframes launcher-show {
   from {

@@ -131,7 +131,7 @@ bun run build
     "origins": ["https://example.com", "https://www.example.com"],
     "widgetOrigins": ["https://manager.pksep.ru"],
     "config": {
-      "company": { "name": "НПО Амотив" },
+      "company": { "name": "НПО Автомотив" },
       "welcomeMessages": ["Здравствуйте!", "Чем можем помочь?"],
       "socialLinks": [],
       "schedule": {
