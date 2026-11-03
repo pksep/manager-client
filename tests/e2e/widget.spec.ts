@@ -513,6 +513,27 @@ test('после контактов выбранные файлы отправл
     .getByRole('button', { name: 'Отправить сообщение', exact: true })
     .click()
   await expect(f.locator('.message-row[data-message-id]')).toHaveCount(1)
+  await f.locator('.composer').evaluate((composer): void => {
+    const dataTransfer = new DataTransfer()
+    dataTransfer.items.add(
+      new File(['Тест'], 'Тест.jpg', { type: 'image/jpeg' }),
+    )
+    composer.dispatchEvent(
+      new DragEvent('dragenter', { bubbles: true, dataTransfer }),
+    )
+  })
+  await expect(f.locator('.drag-overlay')).toBeVisible()
+  await f.locator('.drag-overlay').evaluate((overlay): void => {
+    overlay.dispatchEvent(
+      new DragEvent('dragleave', {
+        bubbles: true,
+        relatedTarget: null,
+        clientX: 120,
+        clientY: 80,
+      }),
+    )
+  })
+  await expect(f.locator('.drag-overlay')).toHaveCount(0)
   async function chooseFiles(
     files: { name: string; mimeType: string; buffer: Buffer }[],
   ) {
@@ -556,7 +577,13 @@ test('после контактов выбранные файлы отправл
   await expect(f.getByText('Как с вами связаться?')).toHaveCount(0)
   // A rejected upload must remain retryable without selecting the file again.
   await page.route('**/v1/widget/attachments', async (route) => {
-    await route.fulfill({ status: 422, json: {} })
+    await route.fulfill({
+      status: 422,
+      json: {
+        code: 'file_rejected',
+        error: 'Файл не прошёл проверку безопасности',
+      },
+    })
     await page.unroute('**/v1/widget/attachments')
   })
   await chooseFiles([
@@ -566,7 +593,9 @@ test('после контактов выбранные файлы отправл
       buffer: Buffer.from('Повторная отправка'),
     },
   ])
-  await expect(f.getByRole('alert')).toBeVisible()
+  await expect(f.getByRole('alert')).toContainText(
+    'Файл не прошёл проверку безопасности',
+  )
   await f.getByRole('button', { name: 'Повторить', exact: true }).click()
   await expect(
     f.getByRole('button', { name: 'Скачать Повтор.txt' }),
