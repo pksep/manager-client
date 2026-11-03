@@ -141,6 +141,20 @@ export class WidgetApi {
             false,
           )
         }
+        if (
+          path === '/attachments' &&
+          response.status === 422 &&
+          result &&
+          typeof result === 'object' &&
+          'code' in result &&
+          result.code === 'file_rejected' &&
+          'error' in result &&
+          typeof result.error === 'string' &&
+          result.error.trim() &&
+          result.error.length <= 300
+        ) {
+          throw new ServiceError(result.error, false, response.status)
+        }
         throw new ServiceError(
           response.status >= 500
             ? 'Сервис временно недоступен'
@@ -274,7 +288,19 @@ export class WidgetApi {
 
   async upload(file: File, operationId: string): Promise<Attachment> {
     const body = new FormData()
-    body.set('file', file)
+    let attachment = file
+    const imageExtension = /\.(jpe?g|png|gif|webp)$/i
+    if (imageExtension.test(file.name)) {
+      const header = new TextDecoder().decode(
+        await file.slice(0, 12).arrayBuffer(),
+      )
+      if (header.startsWith('RIFF') && header.slice(-4) === 'WEBP') {
+        attachment = new File([file], file.name.replace(imageExtension, '.webp'), {
+          type: 'image/webp',
+        })
+      }
+    }
+    body.set('file', attachment)
     body.set('operationId', operationId)
     const result = await this.request<Attachment>(
       '/attachments',

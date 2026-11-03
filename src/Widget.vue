@@ -162,6 +162,8 @@ watch([available, editor], async () => {
     : window.setTimeout(preload, 100)
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('dragleave', closeDragOverlayOnFrameExit, true)
+  window.removeEventListener('blur', closeDragOverlay)
   window.removeEventListener('pointerdown', interaction, true)
   window.removeEventListener('keydown', interaction, true)
   cancelWarmup()
@@ -385,8 +387,19 @@ function scheduleAutomaticOpen(): void {
 
 watch([available, open, inquiryId], scheduleAutomaticOpen, { immediate: true })
 
+function closeDragOverlay(): void {
+  // Общий редактор закрывает зоны загрузки по событию dragend.
+  window.dispatchEvent(new DragEvent('dragend'))
+}
+
+function closeDragOverlayOnFrameExit(event: DragEvent): void {
+  if (event.relatedTarget === null) closeDragOverlay()
+}
+
 onMounted((): void => {
   document.addEventListener('visibilitychange', scheduleAutomaticOpen)
+  window.addEventListener('dragleave', closeDragOverlayOnFrameExit, true)
+  window.addEventListener('blur', closeDragOverlay)
 })
 
 async function closeChat(event?: MouseEvent | KeyboardEvent): Promise<void> {
