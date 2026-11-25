@@ -167,6 +167,8 @@ export function applySiteSocialLinks(
   config: WidgetConfig,
   options: WidgetSiteOptions,
 ): WidgetConfig {
+  if (config.managedByChat) return config
+
   let links = config.socialLinks
 
   for (const messenger of messengers) {
@@ -295,9 +297,12 @@ export interface WidgetConfig {
   socialLinks: {
     label: string
     url: string
-    icon: 'vk' | 'telegram' | 'max' | 'chat'
+    icon: 'vk' | 'avito' | 'telegram' | 'max' | 'chat'
   }[]
   schedule: { timezone: string; start: string; end: string; days: number[] }
+  managedByChat?: true
+  initialMessage?: string
+  autoOpenDelayMs?: number | null
   contactPolicy: 'all' | 'name-and-one'
   limits: { fileBytes: number; fileCount: number; messageChars: number }
 }
@@ -408,9 +413,18 @@ export function parseConfig(value: unknown): WidgetConfig {
       (v) =>
         typeof v.label === 'string' &&
         v.label.length <= 80 &&
-        ['vk', 'telegram', 'max', 'chat'].includes(v.icon),
+        ['vk', 'avito', 'telegram', 'max', 'chat'].includes(v.icon),
     ) ||
     !['all', 'name-and-one'].includes(c.contactPolicy) ||
+    (c.managedByChat !== undefined && c.managedByChat !== true) ||
+    (c.managedByChat === true &&
+      (typeof c.initialMessage !== 'string' ||
+        c.initialMessage.length > 2000 ||
+        (c.autoOpenDelayMs !== null &&
+          (typeof c.autoOpenDelayMs !== 'number' ||
+            !Number.isSafeInteger(c.autoOpenDelayMs) ||
+            c.autoOpenDelayMs < 0 ||
+            c.autoOpenDelayMs > MAX_AUTO_OPEN_DELAY_MS)))) ||
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(c.schedule?.start) ||
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(c.schedule?.end) ||
     !Array.isArray(c.schedule.days) ||

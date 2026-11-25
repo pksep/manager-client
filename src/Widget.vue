@@ -120,13 +120,25 @@ let warmupUsesIdle = false
 const panelTransition = ref<'idle' | 'opening' | 'closing'>('idle')
 
 const initialMessage = computed((): string =>
-  props.embedded ? '' : props.options.initialMessage || '',
+  props.embedded
+    ? ''
+    : config.value?.managedByChat
+      ? (config.value.initialMessage ?? '')
+      : props.options.initialMessage || '',
 )
 const hostDeadline = inject(initialOpenDeadlineKey, undefined)
-const automaticDeadline =
-  props.options.autoOpenDelayMs === undefined
+const mountedAt = Date.now()
+const automaticDeadline = computed((): number | undefined => {
+  if (config.value?.managedByChat) {
+    const delay = config.value.autoOpenDelayMs
+
+    return typeof delay === 'number' ? mountedAt + delay : undefined
+  }
+
+  return props.options.autoOpenDelayMs === undefined
     ? undefined
-    : (hostDeadline ?? Date.now() + props.options.autoOpenDelayMs)
+    : (hostDeadline ?? mountedAt + props.options.autoOpenDelayMs)
+})
 let automaticTimer: ReturnType<typeof setTimeout> | undefined
 let automaticOpenConsumed = false
 
@@ -359,12 +371,8 @@ async function revealChat(focus: boolean): Promise<void> {
 function scheduleAutomaticOpen(): void {
   clearTimeout(automaticTimer)
   automaticTimer = undefined
-  if (
-    props.embedded ||
-    automaticDeadline === undefined ||
-    automaticOpenConsumed
-  )
-    return
+  const deadline = automaticDeadline.value
+  if (props.embedded || deadline === undefined || automaticOpenConsumed) return
 
   if (open.value || inquiryId.value) {
     automaticOpenConsumed = true
@@ -372,7 +380,7 @@ function scheduleAutomaticOpen(): void {
     return
   }
 
-  const remaining = automaticDeadline - Date.now()
+  const remaining = deadline - Date.now()
   if (remaining > 0) {
     automaticTimer = setTimeout(scheduleAutomaticOpen, remaining)
 
@@ -385,7 +393,9 @@ function scheduleAutomaticOpen(): void {
   void revealChat(false)
 }
 
-watch([available, open, inquiryId], scheduleAutomaticOpen, { immediate: true })
+watch([available, open, inquiryId, automaticDeadline], scheduleAutomaticOpen, {
+  immediate: true,
+})
 
 function closeDragOverlay(): void {
   // Общий редактор закрывает зоны загрузки по событию dragend.
@@ -859,7 +869,18 @@ watch([() => messages.value.length, step, open], async () => {
               alt=""
               aria-hidden="true"
               class="messenger-max-icon"
-            /><Icon
+            /><svg
+              v-else-if="link.icon === 'avito'"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="6" cy="16.5" r="4.5" fill="#00AAFF" />
+              <circle cx="17.5" cy="7" r="5.5" fill="#97CF26" />
+              <circle cx="6.5" cy="5.5" r="3.5" fill="#A169F7" />
+              <circle cx="17" cy="18" r="3" fill="#FF6163" /></svg
+            ><Icon
               v-else
               :name="icon[link.icon]"
               :width="24"
