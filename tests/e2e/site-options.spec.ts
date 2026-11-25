@@ -91,6 +91,66 @@ test('неверная настройка задержки не создаёт i
   ).toBe(0)
 })
 
+for (const delay of [0, null] as const) {
+  test(`настройки из Чата имеют приоритет над кодом сайта: ${delay}`, async ({
+    page,
+  }): Promise<void> => {
+    await page.route('**/v1/widget/session', async (route): Promise<void> => {
+      const response = await route.fetch()
+      const result = await response.json()
+
+      await route.fulfill({
+        response,
+        json: {
+          ...result,
+          config: {
+            ...result.config,
+            managedByChat: true,
+            initialMessage: delay === null ? '' : 'Новое приветствие из Чата',
+            autoOpenDelayMs: delay,
+            welcomeMessages: ['Узнать цену'],
+            socialLinks: [
+              {
+                label: 'Авито',
+                icon: 'avito',
+                url: 'https://www.avito.ru/test',
+              },
+            ],
+          },
+        },
+      })
+    })
+    await mount(page, {
+      initialMessage: 'Старое приветствие на сайте',
+      autoOpenDelayMs: delay === null ? 0 : undefined,
+      telegramUrl: 'https://t.me/test',
+    })
+
+    if (delay === null) {
+      const launcher = widget(page).getByRole('button', { name: 'Открыть чат' })
+      await expect(launcher).toBeVisible()
+      await launcher.hover()
+      await expect(
+        widget(page).getByRole('link', { name: 'Авито' }),
+      ).toHaveAttribute('href', 'https://www.avito.ru/test')
+      await expect(
+        widget(page).getByRole('link', { name: /Telegram/ }),
+      ).toHaveCount(0)
+      await widget(page)
+        .getByRole('button', { name: 'Написать сообщение' })
+        .click()
+      await expect(widget(page).locator('.welcome-message')).toHaveText(
+        'Узнать цену',
+      )
+      await expect(widget(page).locator('.initial-message-text')).toHaveCount(0)
+    } else {
+      await expect(widget(page).locator('.initial-message-text')).toHaveText(
+        'Новое приветствие из Чата',
+      )
+    }
+  })
+}
+
 test('после ручного открытия и закрытия таймер не раскрывает окно снова', async ({
   page,
 }): Promise<void> => {
